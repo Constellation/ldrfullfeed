@@ -1,0 +1,10 @@
+LDR Full Feed
+
+Greasemonkey User Script
+
+load full entry-text on RSS Reader "LDR(livedoor reader)"
+
+# key
+g         : load current entry-text
+shift-g   : load cache from wedata(database on web)
+u         : load all entries
