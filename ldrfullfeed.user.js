@@ -243,8 +243,19 @@ FullFeed.prototype.addEntry = function(){
   });
 }
 
-FullFeed.register = function(){
+FullFeed.register = function() {
   if(!WIDGET) return;
+  if(CLICKABLE){
+    var re = /gm_fullfeed_widget_(\d+)/;
+    window.addEventListener('click',(function(e){
+      var element = e.target;
+      if(element.className && element.className == 'gm_fullfeed_icon'){
+        var item = id2item(element.id.match(re)[1]);
+        if(item) init(item);
+      }
+    }), true);
+  }
+
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
     if (cache.pattern.test(item.link) || cache.pattern.test(feed.channel.link)) {
@@ -256,23 +267,7 @@ FullFeed.register = function(){
       ].join('');
     }
   }, description);
-
-  if(!CLICKABLE) return;
-  var re = /gm_fullfeed_widget_(\d+)/;
-  w.register_hook('AFTER_PRINTFEED', function(feed){
-    $X('//img[contains(concat(" ",@class," ")," gm_fullfeed_icon ")]', document)
-    .forEach(function(element){
-      element.addEventListener('click',function(e){
-        var element = e.target;
-        if(element.className && element.className == 'gm_fullfeed_icon'){
-          var item = id2item(element.id.match(re)[1]);
-          if(item) init(item);
-        }
-      },true);
-    });
-  });
 }
-
 
 FullFeed.documentFilters = [];
 
