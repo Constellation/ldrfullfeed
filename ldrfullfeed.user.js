@@ -259,12 +259,17 @@ FullFeed.register = function(){
   }, description);
 
   if(!CLICKABLE) return;
+  var tmp = [];
   w.register_hook("AFTER_PRINTFEED", function(feed){
     addListener();
     if(!w.State.writer || w.State.writer.complete){
       return;
     }
     watchWriter(feed);
+  });
+
+  w.register_hook("BEFORE_PRINTFEED", function(feed){
+    removeListener();
   });
 
   function watchWriter(feed){
@@ -282,21 +287,30 @@ FullFeed.register = function(){
   }
 
   function addListener(){
-    var re = /gm_fullfeed_widget_(\d+)/;
     $X('id("right_body")//img[contains(concat(" ",@class," ")," gm_fullfeed_icon_disable ")]', document)
     .forEach(function(element){
       w.removeClass(element, 'gm_fullfeed_icon_disable');
       w.addClass(element, 'gm_fullfeed_icon');
-      var id = element.id.match(re)[1];
-      element.addEventListener('click',function(e){
-        var element = e.target;
-        if(element.className && element.className == 'gm_fullfeed_icon'){
-          var item = id2item(id);
-          if(item) init(item);
-        }
-      },true);
+      element.addEventListener('click', getEntryByPressButton, true);
+      tmp.push(element);
     });
   }
+
+  function removeListener(){
+    while(tmp.length){
+      tmp.pop().removeEventListener('click', getEntryByPressButton, true);
+    }
+  }
+
+  function getEntryByPressButton (e){
+    var re = /gm_fullfeed_widget_(\d+)/;
+    var id = this.id.match(re)[1];
+    if(this.className && this.className == 'gm_fullfeed_icon'){
+      var item = id2item(id);
+      if(item) init(item);
+    }
+  }
+
 }
 
 
