@@ -243,31 +243,62 @@ FullFeed.prototype.addEntry = function(){
   });
 }
 
-FullFeed.register = function() {
-  if(!WIDGET) return;
-  if(CLICKABLE){
-    var re = /gm_fullfeed_widget_(\d+)/;
-    window.addEventListener('click',(function(e){
-      var element = e.target;
-      if(element.className && element.className == 'gm_fullfeed_icon'){
-        var item = id2item(element.id.match(re)[1]);
-        if(item) init(item);
-      }
-    }), true);
-  }
+FullFeed.register = function(){
 
+  if(!WIDGET) return;
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
     if (cache.pattern.test(item.link) || cache.pattern.test(feed.channel.link)) {
       if(CLICKABLE) return [
-        '<img class="gm_fullfeed_icon" id="gm_fullfeed_widget_'+item.id+'" src="'+ICON+'">'
+        '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+ICON+'">'
       ].join('');
       else return [
         '<img src="'+ICON+'">'
       ].join('');
     }
   }, description);
+
+  if(!CLICKABLE) return;
+  w.register_hook("AFTER_PRINTFEED", function(feed){
+    addListener();
+    if(!w.State.writer || w.State.writer.complete){
+      return;
+    }
+    watchWriter(feed);
+  });
+
+  function watchWriter(feed){
+    w.State.writer.watch("complete", function(key, oldVal, newVal){
+      w.State.writer2.watch("complete", function(key, oldVal, newVal){
+        if(! w.State.writer.complete){
+          watchWriter(feed);
+          return newVal;
+        }
+        addListener();
+        return newVal;
+      });
+      return newVal;
+    })
+  }
+
+  function addListener(){
+    var re = /gm_fullfeed_widget_(\d+)/;
+    $X('id("right_body")//img[contains(concat(" ",@class," ")," gm_fullfeed_icon_disable ")]', document)
+    .forEach(function(element){
+      w.removeClass(element, 'gm_fullfeed_icon_disable');
+      w.addClass(element, 'gm_fullfeed_icon');
+      var id = element.id.match(re)[1];
+      element.addEventListener('click',function(e){
+        var element = e.target;
+        if(element.className && element.className == 'gm_fullfeed_icon'){
+          var item = id2item(id);
+          if(item) init(item);
+        }
+      },true);
+    });
+  }
 }
+
 
 FullFeed.documentFilters = [];
 
@@ -609,6 +640,22 @@ var timer = setTimeout(function() {
 
 function message (mes){
   w.message(mes);
+}
+
+function addBefore(target, name, before) {
+	var original = target[name];
+	target[name] = function() {
+		before.apply(this, arguments);
+		return original.apply(this, arguments);
+	}
+}
+
+function addAfter(target, name, after) {
+	var original = target[name];
+	target[name] = function() {
+		return original.apply(this, arguments);
+		after.apply(this, arguments);
+	}
 }
 
 function id2item (id){
