@@ -58,7 +58,7 @@ const WIDGET = true;
 //entry取り込むときにScript要素とか削除しているからたぶん大丈夫だと思うけど
 const CLICKABLE = true; 
 
-const DEBUG = true;
+const DEBUG = false;
 
 const SITEINFO_IMPORT_URLS = [
 {
@@ -67,7 +67,7 @@ const SITEINFO_IMPORT_URLS = [
   url: 'http://wedata.net/databases/LDRFullFeed/items.json'
 },
 {
-  name:'URL List',
+  name:'Microformats URL List',
   format:'HTML',
   url: 'http://constellation.jottit.com/microformats_url_list'
 },
@@ -349,15 +349,15 @@ window.FullFeed.addFilter(function(nodes, url){
 });
 
 
+// Filter: Remove Script and H2 tags
+// iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
+// なので、SITEINFOはIFRAMEを基準に作成しないでいただけるとありがたい。
 if(REMOVE_SCRIPT || REMOVE_H2TAG || REMOVE_IFRAME)
 window.FullFeed.addFilter(function(nodes, url){
   filter(nodes, function(e){
     var n = e.nodeName;
     if(REMOVE_SCRIPT && n.indexOf('SCRIPT') == 0) return false;
     if(REMOVE_H2TAG && n.indexOf('H2') == 0) return false;
-    // iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
-    // なので、SITEINFOはIFRAMEを基準に作成しないでいただけるとありがたい。
-    // if(REMOVE_IFRAME && n.indexOf('IFRAME') == 0) return false;
     return true;
   });
   nodes.forEach(function(e){
@@ -367,6 +367,19 @@ window.FullFeed.addFilter(function(nodes, url){
     });
   });
 });
+
+// Filter: Remove Particular Class
+// LDR 自体が使っているclassを取り除く。とりあえずmoreだけ。
+// ほかにもあれば追加する。
+window.FullFeed.addFilter(function(nodes, url){
+  nodes.forEach(function(e){
+    $X('descendant-or-self::*[contains(concat(" ",@class," ")," more ")]', e)
+    .forEach(function(i){
+      w.removeClass(i, 'more');
+    });
+  });
+});
+
 
 // [Cache Manage]
 
