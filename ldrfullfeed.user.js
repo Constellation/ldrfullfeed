@@ -15,6 +15,7 @@ const CSS = <><![CDATA[
 .gm_fullfeed_loading, .gm_fullfeed_loading a{color : green !important;}
 .gm_fullfeed_loading .item_body a{color : palegreen !important;}
 .gm_fullfeed_loading{background-color : Honeydew !important;}
+.gm_fullfeed_icon{cursor : pointer ;}
 ]]></>.toString();
 
 // == [Icon] ========================================================
@@ -49,7 +50,6 @@ const REMOVE_SCRIPT = true;
 const REMOVE_H2TAG = true;
 const REMOVE_IFRAME = true;
 
-const CHECK_UPDATE = eval(GM_getValue('update')) || true;
 const OPEN = false; //SITEINFOになかった場合にそのエントリを開くかどうか
 const ITEMFILTER = true;
 const AUTO_SEARCH = true;
@@ -58,11 +58,20 @@ const WIDGET = true;
 //entry取り込むときにScript要素とか削除しているからたぶん大丈夫だと思うけど
 const CLICKABLE = true; 
 
-const DEBUG = false;
+const DEBUG = true;
 
 const SITEINFO_IMPORT_URLS = [
-{format:'JSON', url: 'http://wedata.net/databases/LDRFullFeed/items.json'},
-{format:'HTML', url: 'http://constellation.jottit.com/microformats_url_list'},
+{
+  name:'WeData',
+  format:'JSON',
+  url: 'http://wedata.net/databases/LDRFullFeed/items.json'
+},
+{
+  name:'URL List',
+  format:'HTML',
+  url: 'http://constellation.jottit.com/microformats_url_list'
+},
+
 //{format:'HTML', url: 'http://constellation.jottit.com/siteinfo'},
 //{format:'HTML', url: 'http://constellation.jottit.com/test'},
 ];
@@ -182,7 +191,7 @@ FullFeed.prototype.requestLoad = function(res) {
 
   if(this.entry.length == 0){
     try{
-      this.entry = $X(this.info.xpath, htmldoc);
+      this.entry = $X(this.info.xpath, htmldoc, Array);
     } catch(e) {
       message(e);
       return;
@@ -298,7 +307,9 @@ FullFeed.register = function(){
 
   function removeListener(){
     while(tmp.length){
-      tmp.pop().removeEventListener('click', getEntryByPressButton, true);
+      try{
+        tmp.pop().removeEventListener('click', getEntryByPressButton, true);
+      }catch(e){}
     }
   }
 
@@ -391,7 +402,8 @@ Cache.prototype.getSiteinfo = function (){
 
 Cache.prototype.resetSiteinfo = function(){
   if(this.state == 'loading') return message('Now loading. Please wait!');
-  this.state = 'loading'
+  this.state = 'loading';
+  this.success = [];
   message('Resetting cache. Please wait...');
   this.tmp = {};
   var self = this;
@@ -399,17 +411,18 @@ Cache.prototype.resetSiteinfo = function(){
       self.tmp[i.type] = [];
   });
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
+      self.success[index] = false;
       var opt = {
         method: 'GET',
         url: obj.url,
         headers: {
-          'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed)'
+          'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onload: function(res){
           self.setSiteinfo.apply(self, [res, obj, index]);
         },
         onerror: function(res){
-          message('Cache Request Error');
+          self.requestError.apply(self, [res, obj, index]);
         },
       }
       window.setTimeout(GM_xmlhttpRequest, 0, opt);
@@ -420,6 +433,8 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
   var self = this;
   var info = [];
   var data = {};
+  var name = obj.name || '';
+  this.success[index] = true;
   switch (obj.format.toUpperCase()){
     case 'JSON':
       info = eval(res.responseText)
@@ -460,17 +475,24 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
       self.tmp[i.type].sort(function(a,b){ return a.urlIndex - b.urlIndex});
       if(DEBUG) log('CACHE: ' + i.type + ':ok');
   });
-  
-  if (this.tmp) {
+  if(DEBUG) log(name);
+  if (this.tmp && this.success.every(function(i){ return i}) ) {
     this.cacheInfo = {
       info: this.tmp,
     }
     GM_setValue('cache', this.cacheInfo.toSource());
     if(DEBUG) log(this.cacheInfo)
     if(WIDGET) this.createPattern();
+    var name = obj.name || '';
     message('Resetting cache. Please wait... Done');
     this.state = 'usual'
   }
+}
+
+Cache.prototype.requestError = function(res, obj, index){
+  var name = ' '+obj.name || '';
+  message('Cache Request Error:'+name);
+  this.state = 'usual'
 }
 
 Cache.prototype.parseMicroformats = function(c, li, index){
@@ -606,6 +628,8 @@ var init = function(i){
     return message('This entry is advertisement');
   if(w.hasClass(c.item_container, 'gm_fullfeed_loaded'))
     return message('This entry has been already loaded.');
+  if(w.hasClass(c.item_container, 'gm_fullfeed_loading'))
+    return message('Now loadig...');
 
 
   launchFullFeed(cache.siteinfo, c);
@@ -654,22 +678,6 @@ var timer = setTimeout(function() {
 
 function message (mes){
   w.message(mes);
-}
-
-function addBefore(target, name, before) {
-	var original = target[name];
-	target[name] = function() {
-		before.apply(this, arguments);
-		return original.apply(this, arguments);
-	}
-}
-
-function addAfter(target, name, after) {
-	var original = target[name];
-	target[name] = function() {
-		return original.apply(this, arguments);
-		after.apply(this, arguments);
-	}
 }
 
 function id2item (id){
