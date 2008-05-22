@@ -54,8 +54,6 @@ const OPEN = false; //SITEINFOになかった場合にそのエントリを開�
 const ITEMFILTER = true;
 const AUTO_SEARCH = true;
 const WIDGET = true;
-//iconをクリックすると展開できるようにする security的に若干難があるかも
-//entry取り込むときにScript要素とか削除しているからたぶん大丈夫だと思うけど
 const CLICKABLE = true; 
 
 const DEBUG = false;
@@ -145,7 +143,7 @@ FullFeed.prototype.request = function(){
           'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onerror: function(){
-          self.requestError.apply(self, ['Request Error']);
+          self.error.apply(self, ['FullFeed Request Error']);
         },
         onload: function(res){
           self.requestLoad.apply(self, [res])
@@ -167,9 +165,14 @@ FullFeed.prototype.requestLoad = function(res) {
   text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
     "$1");
 
-  if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, ""); 
+  if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
 
-  var htmldoc = parseHTML(text);
+  try{
+    var htmldoc = parseHTML(text);
+  } catch(e) {
+    return this.error('HTML Parse Error');
+  }
+
   removeXSSRisk(htmldoc);
 
   if(this.info.base && this.requestURL.indexOf(this.info.base) == -1){
@@ -193,8 +196,7 @@ FullFeed.prototype.requestLoad = function(res) {
     try{
       this.entry = $X(this.info.xpath, htmldoc, Array);
     } catch(e) {
-      message(e);
-      return;
+      return this.error('Something is wrong with this XPath');
     }
   }
 
@@ -213,13 +215,7 @@ FullFeed.prototype.requestLoad = function(res) {
 
     this.requestEnd();
   } else {
-    this.requestError('This SITE_INFO is unmatched to this entry');
-  }
-
-  if (this.info.base) {
-    w.addClass(this.itemInfo.item_container, this.info.base);
-  } else {
-    w.addClass(this.itemInfo.item_container, this.requestURL);
+    this.error('This SITE_INFO is unmatched to this entry');
   }
 }
 
@@ -228,11 +224,16 @@ FullFeed.prototype.requestEnd = function(){
   message('Loading Full Feed... Done');
   w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_loaded');
+  if (this.info.base) {
+    w.addClass(this.itemInfo.item_container, this.info.base);
+  } else {
+    w.addClass(this.itemInfo.item_container, this.requestURL);
+  }
 }
 
-FullFeed.prototype.requestError = function(e){
+FullFeed.prototype.error = function(e){
   this.state = 'error';
-  message('Error : ' + e);
+  message('Error: ' + e);
   w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_error');
 }
@@ -339,7 +340,9 @@ window.FullFeed = {
   addDocumentFilter : function(f){ FullFeed.documentFilters.push(f); },
 };
 
-// addTargetAttr
+
+
+// Filter: Add TargetAttr
 window.FullFeed.addFilter(function(nodes, url){
     nodes.forEach(function(e){
       var anchors = $X('descendant-or-self::a', e);
@@ -347,7 +350,6 @@ window.FullFeed.addFilter(function(nodes, url){
         anchors.forEach(function(i){ i.target = '_blank' });
     });
 });
-
 
 // Filter: Remove Script and H2 tags
 // iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
@@ -386,7 +388,7 @@ window.FullFeed.addFilter(function(nodes, url){
 var Cache = function(){
   var self = this;
   this.pattern;
-  this.state = 'usual';
+  this.state = 'normal';
   this.getSiteinfo();
   this.rebuildLocalSiteinfo();
   if(DEBUG) log(this.cacheInfo);
@@ -435,7 +437,7 @@ Cache.prototype.resetSiteinfo = function(){
           self.setSiteinfo.apply(self, [res, obj, index]);
         },
         onerror: function(res){
-          self.requestError.apply(self, [res, obj, index]);
+          self.error.apply(self, ['Cache Request Error']);
         },
       }
       window.setTimeout(GM_xmlhttpRequest, 0, opt);
@@ -447,21 +449,28 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
   var info = [];
   var data = {};
   var name = obj.name || '';
-  this.success[index] = true;
   switch (obj.format.toUpperCase()){
     case 'JSON':
-      info = eval(res.responseText)
-        .map(function(i){
-          var d = i.data;
-          d.microformats = (d.microformats == 'true')? true: false;
-          d.urlIndex = index;
-          return d;
-        })
-        .filter(function(i){ return (Cache.isValid(i) && i.type)? true : false});
+      try {
+        info = eval(res.responseText)
+          .map(function(i){
+            var d = i.data;
+            d.microformats = (d.microformats == 'true')? true: false;
+            d.urlIndex = index;
+            return d;
+          })
+          .filter(function(i){ return (Cache.isValid(i) && i.type)? true : false});
+      } catch(e) {
+        this.error('Not JSON: '+name);
+      }
       break;
 
     case 'HTML':
-      var doc = parseHTML(res.responseText);
+      try {
+        var doc = parseHTML(res.responseText);
+      } catch(e) {
+        this.error('HTML Parse Error: '+name);
+      }
 
       $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
       .forEach(function(siteinfo_list){
@@ -488,24 +497,25 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
       self.tmp[i.type].sort(function(a,b){ return a.urlIndex - b.urlIndex});
       if(DEBUG) log('CACHE: ' + i.type + ':ok');
   });
+  this.success[index] = true;
   if(DEBUG) log(name);
   if (this.tmp && this.success.every(function(i){ return i}) ) {
     this.cacheInfo = {
       info: this.tmp,
     }
     GM_setValue('cache', this.cacheInfo.toSource());
-    if(DEBUG) log(this.cacheInfo)
+    if(DEBUG) log(this.cacheInfo);
     if(WIDGET) this.createPattern();
     var name = obj.name || '';
     message('Resetting cache. Please wait... Done');
-    this.state = 'usual'
+    this.state = 'normal';
   }
 }
 
-Cache.prototype.requestError = function(res, obj, index){
-  var name = ' '+obj.name || '';
-  message('Cache Request Error:'+name);
-  this.state = 'usual'
+Cache.prototype.error = function(e){
+  message('Error: '+e);
+  this.state = 'normal';
+  return;
 }
 
 Cache.prototype.parseMicroformats = function(c, li, index){
@@ -535,7 +545,7 @@ Cache.prototype.parseSiteinfo = function(text){
   var reg = /(^[^:]*?):(.*)$/;
   var trimspace = function(str){
     return str.replace(/^\s*/, '').replace(/\s*$/, '');
-  };
+  }
   var info = {};
   lines.forEach(function(line) {
     if (reg.test(line)) {
