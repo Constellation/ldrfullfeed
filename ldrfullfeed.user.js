@@ -170,7 +170,7 @@ FullFeed.prototype.requestLoad = function(res) {
   try{
     var htmldoc = parseHTML(text);
   } catch(e) {
-    this.error('HTML Parse Error');
+    return this.error('HTML Parse Error');
   }
 
   removeXSSRisk(htmldoc);
@@ -196,7 +196,7 @@ FullFeed.prototype.requestLoad = function(res) {
     try{
       this.entry = $X(this.info.xpath, htmldoc, Array);
     } catch(e) {
-      this.error('Something is wrong with this XPath');
+      return this.error('Something is wrong with this XPath');
     }
   }
 
@@ -215,7 +215,7 @@ FullFeed.prototype.requestLoad = function(res) {
 
     this.requestEnd();
   } else {
-    this.error('This SITE_INFO is unmatched to this entry');
+    return this.error('This SITE_INFO is unmatched to this entry');
   }
 }
 
@@ -236,7 +236,6 @@ FullFeed.prototype.error = function(e){
   message('Error: ' + e);
   w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_error');
-  return;
 }
 
 FullFeed.prototype.removeEntry = function(){
@@ -462,7 +461,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
           })
           .filter(function(i){ return (Cache.isValid(i) && i.type)? true : false});
       } catch(e) {
-        this.error('Not JSON: '+name);
+        return this.error('Not JSON: '+name);
       }
       break;
 
@@ -470,7 +469,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
       try {
         var doc = parseHTML(res.responseText);
       } catch(e) {
-        this.error('HTML Parse Error: '+name);
+        return this.error('HTML Parse Error: '+name);
       }
 
       $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
@@ -516,7 +515,6 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
 Cache.prototype.error = function(e){
   message('Error: '+e);
   this.state = 'normal';
-  return;
 }
 
 Cache.prototype.parseMicroformats = function(c, li, index){
