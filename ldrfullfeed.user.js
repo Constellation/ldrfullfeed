@@ -427,6 +427,7 @@ Cache.prototype.resetSiteinfo = function(){
   });
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
       self.success[index] = false;
+      var name = obj.name || obj.url;
       var opt = {
         method: 'GET',
         url: obj.url,
@@ -437,7 +438,7 @@ Cache.prototype.resetSiteinfo = function(){
           self.setSiteinfo.apply(self, [res, obj, index]);
         },
         onerror: function(res){
-          self.error.apply(self, ['Cache Request Error']);
+          self.error.apply(self, ['Cache Request Error'+name]);
         },
       }
       window.setTimeout(GM_xmlhttpRequest, 0, opt);
@@ -448,7 +449,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
   var self = this;
   var info = [];
   var data = {};
-  var name = obj.name || '';
+  var name = obj.name || obj.url;
   switch (obj.format.toUpperCase()){
     case 'JSON':
       try {
