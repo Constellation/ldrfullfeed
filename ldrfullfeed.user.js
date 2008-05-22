@@ -170,7 +170,7 @@ FullFeed.prototype.requestLoad = function(res) {
   try{
     var htmldoc = parseHTML(text);
   } catch(e) {
-    return this.error('HTML Parse Error');
+    this.error('HTML Parse Error');
   }
 
   removeXSSRisk(htmldoc);
@@ -196,7 +196,7 @@ FullFeed.prototype.requestLoad = function(res) {
     try{
       this.entry = $X(this.info.xpath, htmldoc, Array);
     } catch(e) {
-      return this.error('Something is wrong with this XPath');
+      this.error('Something is wrong with this XPath');
     }
   }
 
@@ -236,6 +236,7 @@ FullFeed.prototype.error = function(e){
   message('Error: ' + e);
   w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_error');
+  return;
 }
 
 FullFeed.prototype.removeEntry = function(){
