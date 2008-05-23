@@ -222,8 +222,8 @@ FullFeed.prototype.requestLoad = function(res) {
 FullFeed.prototype.requestEnd = function(){
   this.state = 'loaded';
   message('Loading Full Feed... Done');
-  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_loaded');
+  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   if (this.info.base) {
     w.addClass(this.itemInfo.item_container, this.info.base);
   } else {
@@ -234,8 +234,8 @@ FullFeed.prototype.requestEnd = function(){
 FullFeed.prototype.error = function(e){
   this.state = 'error';
   message('Error: ' + e);
-  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
   w.addClass(this.itemInfo.item_container, 'gm_fullfeed_error');
+  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
 }
 
 FullFeed.prototype.removeEntry = function(){
