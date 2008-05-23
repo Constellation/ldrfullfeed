@@ -53,6 +53,7 @@ const REMOVE_IFRAME = true;
 const OPEN = false; //SITEINFOになかった場合にそのエントリを開くかどうか
 const ITEMFILTER = true;
 const AUTO_SEARCH = true;
+const EXTRACT_TEXT = false;
 const WIDGET = true;
 const CLICKABLE = true; 
 
@@ -203,6 +204,11 @@ FullFeed.prototype.requestLoad = function(res) {
   if(AUTO_SEARCH && this.entry.length == 0){
     if(DEBUG) log('FULLFEED: Auto Search');
     this.entry = searchEntry(htmldoc);
+  }
+
+  if(EXTRACT_TEXT && this.entry.length == 0){
+    if(DEBUG) log('FULLFEED: Extract Text');
+    this.entry = extractText(htmldoc);
   }
 
   if (this.entry.length > 0) {
@@ -740,6 +746,28 @@ function removeXSSRisk (htmldoc){
       if(!elm.getAttribute("name") || elm.getAttribute("name").toLowerCase().indexOf(attr) < 0) return;
       elm.setAttribute("value", "never");
     });
+}
+
+function extractText (htmldoc) {
+  var div = document.createElement('div');
+  $X('(descendant-or-self::text()[../self::*[self::div or self::table or self::td or self::th or self::tr or self::dt or self::dd or self::font or self::strong or self::ul or self::li]]|descendant-or-self::img|descendant-or-self::a)', htmldoc)
+    .map(function(i){
+      log(i.parentNode.nodeName);
+      if(i.nodeName == 'IMG')
+        return i;
+      else if(i.nodeName == 'A')
+        return i;
+      else{
+        i.nodeValue = i.nodeValue+'\n'
+        return i;
+      }
+    })
+    .forEach(function(i){
+      div.appendChild(i);
+    });
+  div.innerHTML = div.innerHTML
+    .replace(/(?:(\r\n|\r|\n)\s*)+/g,'<br>$1');
+  return [div];
 }
 
 function searchEntry(htmldoc) {
