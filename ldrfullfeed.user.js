@@ -506,7 +506,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
   });
   this.success[index] = true;
   if(DEBUG) log(name);
-  if (this.tmp && this.success.every(function(i){ return i}) ) {
+  if (this.tmp && this.success.indexOf(false)==-1 ) {
     this.cacheInfo = {
       info: this.tmp,
     }
