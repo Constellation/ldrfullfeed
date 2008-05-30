@@ -176,7 +176,7 @@ FullFeed.prototype.requestLoad = function(res) {
 
   removeXSSRisk(htmldoc);
 
-  if(this.info.base && this.requestURL.indexOf(this.info.base) == -1){
+  if(this.info.base && !this.requestURL.indexOf(this.info.base) == 0){
      relativeToAbsolutePath(htmldoc, this.info.base);
   } else {
      relativeToAbsolutePath(htmldoc, this.requestURL);
