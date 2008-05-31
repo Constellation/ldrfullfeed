@@ -424,7 +424,7 @@ Cache.prototype.getSiteinfo = function (){
 Cache.prototype.resetSiteinfo = function(){
   if(this.state == 'loading') return message('Now loading. Please wait!');
   this.state = 'loading';
-  this.success = [];
+  this.success = 0;
   message('Resetting cache. Please wait...');
   this.tmp = {};
   var self = this;
@@ -432,7 +432,6 @@ Cache.prototype.resetSiteinfo = function(){
       self.tmp[i.type] = [];
   });
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
-      self.success[index] = false;
       var name = obj.name || obj.url;
       var opt = {
         method: 'GET',
@@ -504,9 +503,9 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
       self.tmp[i.type].sort(function(a,b){ return a.urlIndex - b.urlIndex});
       if(DEBUG) log('CACHE: ' + i.type + ':ok');
   });
-  this.success[index] = true;
+  ++this.success
   if(DEBUG) log(name);
-  if (this.tmp && this.success.indexOf(false)==-1 ) {
+  if (this.tmp && this.success == SITEINFO_IMPORT_URLS.length ) {
     this.cacheInfo = {
       info: this.tmp,
     }
