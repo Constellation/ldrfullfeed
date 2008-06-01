@@ -123,7 +123,7 @@ var FullFeed = function(info, c){
   var bodyXPath = 'id("item_body_' + this.itemInfo.id + '")/div[@class="body"]';
   this.itemInfo.item_body = $X(bodyXPath, document)[0];
   this.state = 'wait';
-  this.mime = 'text/html; charset=' + (this.info.enc || document.characterSet); 
+  this.mime = 'text/html; charset=' + (this.info.enc || document.characterSet);
   this.entry = [];
 
 
@@ -546,7 +546,7 @@ Cache.prototype.parseMicroformats = function(c, li, index){
 }
 
 Cache.prototype.parseSiteinfo = function(text){
-  var lines = text.split(/[\r\n]+/); 
+  var lines = text.split(/[\r\n]+/);
   var reg = /(^[^:]*?):(.*)$/;
   var trimspace = function(str){
     return str.replace(/^\s*/, '').replace(/\s*$/, '');
