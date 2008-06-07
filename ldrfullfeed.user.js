@@ -461,6 +461,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
         info = eval(res.responseText)
           .map(function(i){
             var d = i.data;
+            d.name = i.name;
             d.microformats = (d.microformats == 'true')? true: false;
             d.urlIndex = index;
             return d;
@@ -526,6 +527,7 @@ Cache.prototype.error = function(e){
 Cache.prototype.parseMicroformats = function(c, li, index){
   if(!li) return;
   var info = {
+    name : "MicroformatsURLList:"+li.textContent,
     url : li.textContent,
     urlIndex : index,
     enc : c,
