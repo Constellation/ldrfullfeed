@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.16
+// @version     0.0.17
 // @author      Constellation
 // ==/UserScript==
 
@@ -36,7 +36,7 @@ PKatbLGpBQeAQiJ3mwJydzxn0vZy0+1Y+s3EN4UAADs=
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.16'
+const VERSION = '0.0.17'
 
 const KEY = 'g';
 const GET_SITEINFO_KEY = 'G';
@@ -176,7 +176,9 @@ FullFeed.prototype.requestLoad = function(res) {
 
   removeXSSRisk(htmldoc);
 
-  if(this.info.base && !this.requestURL.indexOf(this.info.base) == 0){
+  if(res.finalUrl){
+    relativeToAbsolutePath(htmldoc, res.finalUrl);
+  } else if(this.info.base && !this.requestURL.indexOf(this.info.base) == 0){
      relativeToAbsolutePath(htmldoc, this.info.base);
   } else {
      relativeToAbsolutePath(htmldoc, this.requestURL);
@@ -808,7 +810,7 @@ function searchEntry(htmldoc) {
 // written by id:Yuichirou
 function relativeToAbsolutePath(htmldoc, base) {
   var top = base.match("^https?://[^/]+")[0];
-  var current = base.replace(/\/[^/]+$/, '/');
+  var current = base.replace(/\/[^\/]+$/, '/');
 
   $X("descendant-or-self::a", htmldoc)
     .forEach(function(elm) {
@@ -834,6 +836,13 @@ function _rel2abs(url, top, current) {
   } else if (url.indexOf("/") == 0) {
     return top + url;
   } else {
+    if(url.indexOf(".") == 0){
+      while(url.indexOf(".") == 0){
+        if(url.substring(0, 3) == "../")
+          current = current.replace(/\/[^\/]+\/$/,"/");
+        url = url.replace(/^\.+\//,"")
+      }
+    }
     return current + url;
   }
 }
