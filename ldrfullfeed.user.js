@@ -4,7 +4,9 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.17
+// @version     0.0.18
+// @resource    orange  http://utatane.tea.googlepages.com/orange.gif
+// @resource    blue    http://utatane.tea.googlepages.com/blue.gif
 // @author      Constellation
 // ==/UserScript==
 
@@ -18,25 +20,11 @@ const CSS = <><![CDATA[
 .gm_fullfeed_icon{cursor : pointer ;}
 ]]></>.toString();
 
-// == [Icon] ========================================================
-const ICON = <><![CDATA[
-data:image/gif;base64,
-R0lGODdhEwATAPMAMf+MAP+lAP+lOv+0AP+0kP/EAP/Etv/TOv/hZv/x2//x////tv//2////wAA
-AAAAACwAAAAAEwATAAAETBDISWsNOOuNJf+aB4LiyJUZ0awNsqGB0RSYkAwhoAnKYaIEBm4EXJgC
-QGFA1VBmUDwfJjjs6DQy2tJp5TBX0uf1mCO/xmYk2mxptyMAOw==
-]]></>.toString().replace(/\s+/g, '');
-
-const ICON2 = <><![CDATA[
-data:image/gif;base64,
-R0lGODdhEwATAPQAMUFp4YfO64fO7ofW9Yfe+LHO68XW68X3/MX3/9ne6+zn7uz/+Oz//Oz////v
-8v///P///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAAAAA
-EwATAAAFUCAgjmRZBmiqrqjIvqoLw/LM1unQQLyz4gECJIESHAwxgEqAUNhwAwZyBl0UnsqcNKCD
-PKatbLGpBQeAQiJ3mwJydzxn0vZy0+1Y+s3EN4UAADs=
-]]></>.toString().replace(/\s+/g, '');
-
 // == [Config] ======================================================
 
-const VERSION = '0.0.17'
+const VERSION = '0.0.18'
+
+const ICON = 'orange' // or blue
 
 const KEY = 'g';
 const GET_SITEINFO_KEY = 'G';
@@ -55,13 +43,16 @@ const ITEMFILTER = true;
 const AUTO_SEARCH = true;
 const EXTRACT_TEXT = false;
 const WIDGET = true;
-const CLICKABLE = true; 
+const CLICKABLE = true;
+
+const USE_AUTOPAGERIZE_SITEINFO = true;
+const AUTOPAGER = true;
 
 const DEBUG = false;
 
 const SITEINFO_IMPORT_URLS = [
 {
-  name:'WeData',
+  name:'Wedata',
   format:'JSON',
   url: 'http://wedata.net/databases/LDRFullFeed/items.json'
 },
@@ -75,6 +66,13 @@ const SITEINFO_IMPORT_URLS = [
 //{format:'HTML', url: 'http://constellation.jottit.com/test'},
 ];
 
+const AUTOPAGERIZE_SITEINFO_IMPORT_URLS = [
+{
+  name:'Wedata AutoPagerize',
+  format:'JSON',
+  url: 'http://wedata.net/databases/AutoPagerize/items.json'
+}
+];
 // == [SITE_INFO] ===================================================
 
 const SITE_INFO = [
@@ -99,6 +97,13 @@ const MICROFORMATS = [
   },
 ]
 
+const AUTOPAGERIZE_MICROFORMAT = {
+    name:         'autopagerize_microformat',
+    url:          '.*',
+    nextLink:     '//a[@rel="next"] | //link[@rel="next"]',
+    insertBefore: '//*[contains(@class, "autopagerize_insert_before")]',
+    pageElement:  '//*[contains(@class, "autopagerize_page_element")]',
+}
 // == [Cache Phase] =================================================
 
 const PHASE = [
@@ -115,25 +120,23 @@ const PHASE = [
 
 // [FullFeed]
 var FullFeed = function(info, c){
-  if(DEBUG) log(info, c)
-  this.itemInfo = c;
+  log(info, c)
+  this.data = c;
   this.info = info;
+  this.type = 'FullFeed';
 
-  this.requestURL = this.itemInfo.itemURL;
-  var bodyXPath = 'id("item_body_' + this.itemInfo.id + '")/div[@class="body"]';
-  this.itemInfo.item_body = $X(bodyXPath, document)[0];
+  this.requestURL = this.data.itemURL;
+  var bodyXPath = 'id("item_body_' + this.data.id + '")/div[@class="body"]';
+  this.data.item_body = $X(bodyXPath, document)[0];
   this.state = 'wait';
   this.mime = 'text/html; charset=' + (this.info.enc || document.characterSet);
   this.entry = [];
-
 
   this.request();
 };
 
 FullFeed.prototype.request = function(){
-  if (!this.requestURL) {
-    return
-  }
+  if (!this.requestURL) return;
   this.state = 'request';
   var self = this;
   var opt = {
@@ -144,134 +147,260 @@ FullFeed.prototype.request = function(){
           'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onerror: function(){
-          self.error.apply(self, ['FullFeed Request Error']);
+          self.error.call(self, 'FullFeed Request Error');
         },
         onload: function(res){
-          self.requestLoad.apply(self, [res])
+          self.load[self.type].call(self, res)
         },
   };
-  message('Loading Full Feed...');
-  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
-  if (this.info.base && opt.url.indexOf('http:') != 0) {
-    opt.url = pathToURL(this.info.base, opt.url);
-  }
+  message('Loading '+this.type+' ...');
+  if(w.hasClass(this.data.container, 'gm_fullfeed_loaded'))
+    w.toggleClass(this.data.container, 'gm_fullfeed_loaded');
+  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
   window.setTimeout(GM_xmlhttpRequest, 0, opt);
 }
 
-FullFeed.prototype.requestLoad = function(res) {
-  this.state = 'loading';
-  var text = res.responseText;
-  var self = this;
-  
-  text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
+FullFeed.prototype.load = {
+  FullFeed :function(res) {
+    this.state = 'loading';
+    var text = res.responseText;
+    var self = this;
+
+    try {
+      text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
     "$1");
-
-  if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
-
-  try{
-    var htmldoc = parseHTML(text);
-  } catch(e) {
-    return this.error('HTML Parse Error');
-  }
-
-  removeXSSRisk(htmldoc);
-
-  if(res.finalUrl){
-    relativeToAbsolutePath(htmldoc, res.finalUrl);
-  } else if(this.info.base && !this.requestURL.indexOf(this.info.base) == 0){
-     relativeToAbsolutePath(htmldoc, this.info.base);
-  } else {
-     relativeToAbsolutePath(htmldoc, this.requestURL);
-  }
-
-  if(DEBUG) time('FULLFEED: DocumentFilterTime: ')
-  FullFeed.documentFilters.forEach(function(f) {
-      f(htmldoc, self.requestURL, self.info);
-  });
-  if(DEBUG) timeEnd('FULLFEED: DocumentFilterTime: ')
-
-  if(this.info.microformats){
-    if(DEBUG) log('FULLFEED: Microformats')
-    this.entry = getElementsByMicroformats(htmldoc)
-  }
-
-  if(this.entry.length == 0){
-    try{
-      this.entry = $X(this.info.xpath, htmldoc, Array);
+      if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
+      var htmldoc = parseHTML(text);
+      removeXSSRisk(htmldoc);
+      if(res.finalUrl){
+        this.requestURL = res.finalUrl;
+        relativeToAbsolutePath(htmldoc, this.requestURL);
+      } else {
+        relativeToAbsolutePath(htmldoc, this.requestURL);
+      }
     } catch(e) {
-      return this.error('Something is wrong with this XPath');
+      return this.error('HTML Parse Error');
     }
+  
+    time('FULLFEED: DocumentFilterTime: ');
+    FullFeed.documentFilters.forEach(function(f) {
+      f(htmldoc, this.requestURL, this.info);
+    },this);
+    timeEnd('FULLFEED: DocumentFilterTime: ');
+
+
+    if(USE_AUTOPAGERIZE_SITEINFO || AUTOPAGER)
+      this.apList = cache.info.autopagerize
+        .filter(function({url:aUrl}){
+          return new RegExp(aUrl).test(this.requestURL);
+        },this)
+        .sort(function(a, b){ return (b.url.length - a.url.length) });
+
+    if(this.info.microformats){
+      log('FULLFEED: Microformats')
+      this.entry = getElementsByMicroformats(htmldoc)
+    }
+
+    if(this.entry.length == 0){
+      try{
+        this.entry = $X(this.info.xpath, htmldoc, Array);
+      } catch(e) {
+        return this.error('Something is wrong with this XPath');
+      }
+    }
+
+    if(USE_AUTOPAGERIZE_SITEINFO && this.entry.length == 0){
+      log(this.apList)
+      this.apList.some(function(i){
+        if(i.name=='hAtom' || i.name=='autopagerize_microformat') return false;
+        try {
+          var entry = $X(i.pageElement, htmldoc, Array);
+        } catch(e) { return false }
+        if(entry.length>0){
+          this.entry = entry;
+          log('FULLFEED: AutoPagerize Siteinfo');
+          return true;
+        }
+        else return false;
+      },this);
+    }
+
+    if(AUTO_SEARCH && this.entry.length == 0){
+      log('FULLFEED: Auto Search');
+      this.entry = searchEntry(htmldoc);
+    }
+
+    if(EXTRACT_TEXT && this.entry.length == 0){
+      log('FULLFEED: Extract Text');
+      this.entry = extractText(htmldoc);
+    }
+
+    if (this.entry.length > 0) {
+      if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
+      log(this.entry);
+      this.removeEntry();
+      time('FULLFEED: FilterTime: ');
+      FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) },this);
+      timeEnd('FULLFEED: FilterTime: ');
+
+      this.addEntry();
+
+      this.requestEnd();
+    } else return this.error('This SITE_INFO is unmatched to this entry');
+  },
+  AutoPager: function(res){
+    this.state = 'loading';
+    var text = res.responseText;
+    var self = this;
+    try {
+      text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
+    "$1");
+      if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
+      var htmldoc = parseHTML(text);
+      removeXSSRisk(htmldoc);
+      if(res.finalUrl){
+        this.requestURL = res.finalUrl;
+        relativeToAbsolutePath(htmldoc, this.requestURL);
+      } else {
+        relativeToAbsolutePath(htmldoc, this.requestURL);
+      }
+    } catch(e) {
+      return this.error('HTML Parse Error');
+    }
+
+    time('FULLFEED: DocumentFilterTime: ');
+    FullFeed.documentFilters.forEach(function(f) {
+      f(htmldoc, this.requestURL, this.info);
+    },this);
+    timeEnd('FULLFEED: DocumentFilterTime: ');
+
+    try {
+      this.entry = $X(this.ap.pageElement, htmldoc, Array);
+      this.nextLink = $X(this.ap.nextLink, htmldoc);
+    } catch(e) {
+      this.enable = false;
+    }
+
+    if (this.entry.length > 0) {
+      if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
+      var df = document.createDocumentFragment();
+      this.entry.forEach(function(i){ df.appendChild(i) });
+      this.entry = Array.slice(df.childNodes);
+      log(this.entry);
+
+      time('FULLFEED: FilterTime: ');
+      FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) },this);
+      timeEnd('FULLFEED: FilterTime: ');
+
+      this.createPager();
+      this.addEntry();
+
+      this.requestEnd();
+    }
+    else return this.error('This SITE_INFO is unmatched to this entry');
   }
+}
 
-  if(AUTO_SEARCH && this.entry.length == 0){
-    if(DEBUG) log('FULLFEED: Auto Search');
-    this.entry = searchEntry(htmldoc);
-  }
-
-  if(EXTRACT_TEXT && this.entry.length == 0){
-    if(DEBUG) log('FULLFEED: Extract Text');
-    this.entry = extractText(htmldoc);
-  }
-
-  if (this.entry.length > 0) {
-    this.removeEntry();
-    if(DEBUG) time('FULLFEED: FilterTime: ')
-    FullFeed.filters.forEach(function(f) { f(self.entry, self.requestURL) });
-    if(DEBUG) timeEnd('FULLFEED: FilterTime: ')
-
-    this.addEntry();
-
-    this.requestEnd();
-  } else {
-    return this.error('This SITE_INFO is unmatched to this entry');
-  }
+FullFeed.prototype.createPager = function(){
+  var pager = document.createRange();
+  var p = pager.createContextualFragment('<hr/><p class="gm_fullfeed_pager">page <a class="gm_fullfeed_link" href="'+this.requestURL+'">'+(++this.pageNum || (this.pageNum=2))+'</a></p>');
+  this.data.item_body.appendChild(p);
+  pager.detach();
 }
 
 FullFeed.prototype.requestEnd = function(){
   this.state = 'loaded';
-  message('Loading Full Feed... Done');
-  w.addClass(this.itemInfo.item_container, 'gm_fullfeed_loaded');
-  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
-  if (this.info.base) {
-    w.addClass(this.itemInfo.item_container, this.info.base);
-  } else {
-    w.addClass(this.itemInfo.item_container, this.requestURL);
-  }
+  message('Loading '+this.type+' ...Done');
+  if(AUTOPAGER && !FullFeed.fullfeed['_'+this.data.id]) FullFeed.fullfeed['_'+this.data.id] = this;
+  w.addClass(this.data.container, 'gm_fullfeed_loaded');
+  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
+  w.toggleClass(this.data.container, this.requestURL);
 }
 
 FullFeed.prototype.error = function(e){
   this.state = 'error';
   message('Error: ' + e);
-  w.addClass(this.itemInfo.item_container, 'gm_fullfeed_error');
-  w.toggleClass(this.itemInfo.item_container, 'gm_fullfeed_loading');
+  w.addClass(this.data.container, 'gm_fullfeed_error');
+  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
 }
 
 FullFeed.prototype.removeEntry = function(){
-  while (this.itemInfo.item_body.firstChild) {
-    this.itemInfo.item_body.removeChild(this.itemInfo.item_body.firstChild);
+  while (this.data.item_body.firstChild) {
+    this.data.item_body.removeChild(this.data.item_body.firstChild);
   }
 }
 
 FullFeed.prototype.addEntry = function(){
-  var self = this;
-  this.entry = this.entry.map(function(i) {
-      var pe = document.importNode(i,true);
-      self.itemInfo.item_body.appendChild(pe);
-      return pe;
+  var df = document.createDocumentFragment();
+  this.entry.forEach(function(i){
+    try {
+      i = document.adoptNode(i, true);
+    }catch(e){
+      i = document.importNode(i, true);
+    }
+    df.appendChild(i);
   });
+  this.data.item_body.appendChild(df);
+}
+
+FullFeed.prototype.AutoPager = function (){
+  if (!this.enable){
+    if(this.pageNum>0) return message("cannot AutoPage");
+    else return message('This entry has been already loaded.');
+  }
+  var nextLink = this.nextLink.getAttribute('href') ||
+    this.nextLink.getAttribute('action') ||
+    this.nextLink.getAttribute('value');
+  nextLink = rel2abs(nextLink, this.requestURL);
+  this.requestURL = nextLink;
+  this.type = 'AutoPager';
+  this.request();
+}
+
+FullFeed.prototype.searchAutoPagerData = function (htmldoc){
+  this.enable = false;
+  if(this.apList.length>0){
+    var nextLink;
+    if(!this.ap){
+      if( this.apList.some(function(i){
+        if((nextLink = $X(i.nextLink, htmldoc)[0]) &&
+          ($X(i.pageElement, htmldoc, Array).length>0)){
+            this.ap = i;
+            this.enable = true;
+            return true;
+        }
+        return false;
+      },this)){
+        this.nextLink = nextLink;
+      }
+    } else {
+      if(nextLink = $X(this.ap.nextLink, htmldoc)[0]){
+        this.enable = true;
+        this.nextLink = nextLink;
+      }
+    }
+  }
 }
 
 FullFeed.register = function(){
 
+  if(AUTOPAGER){
+    FullFeed.fullfeed = {};
+    w.register_hook('BEFORE_PRINTFEED',function(){
+      FullFeed.fullfeed = null;
+      FullFeed.fullfeed = {};
+    });
+  }
   if(!WIDGET) return;
+  var icon_data = GM_getResourceURL(ICON);
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
     if (cache.pattern.test(item.link) || cache.pattern.test(feed.channel.link)) {
       if(CLICKABLE) return [
-        '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+ICON+'">'
+        '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
       else return [
-        '<img src="'+ICON+'">'
+        '<img src="'+icon_data+'">'
       ].join('');
     }
   }, description);
@@ -325,22 +454,20 @@ FullFeed.register = function(){
   function getEntryByPressButton (e){
     var re = /gm_fullfeed_widget_(\d+)/;
     var id = this.id.match(re)[1];
-    if(this.className && this.className == 'gm_fullfeed_icon'){
-      var item = id2item(id);
-      if(item) init(item);
-    }
+    if(this.className && this.className == 'gm_fullfeed_icon')
+      init(id);
   }
 
 }
 
 
+// API
 FullFeed.documentFilters = [];
 
 FullFeed.filters= [];
 
 FullFeed.itemFilters= [];
 
-// API
 window.FullFeed = {
   VERSION : VERSION,
   addItemFilter : function(f){ FullFeed.itemFilters.push(f); },
@@ -349,6 +476,7 @@ window.FullFeed = {
 };
 
 
+// [Filters]
 
 // Filter: Add TargetAttr
 window.FullFeed.addFilter(function(nodes, url){
@@ -362,7 +490,7 @@ window.FullFeed.addFilter(function(nodes, url){
 // Filter: Remove Script and H2 tags
 // iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
 // なので、SITEINFOはIFRAMEを基準に作成しないでいただけるとありがたい。
-if(REMOVE_SCRIPT || REMOVE_H2TAG || REMOVE_IFRAME)
+if(REMOVE_SCRIPT || REMOVE_H2TAG )
 window.FullFeed.addFilter(function(nodes, url){
   filter(nodes, function(e){
     var n = e.nodeName;
@@ -391,7 +519,7 @@ window.FullFeed.addFilter(function(nodes, url){
 });
 
 
-// [Cache Manage]
+// [Cache Manager]
 
 var Cache = function(){
   var self = this;
@@ -399,40 +527,51 @@ var Cache = function(){
   this.state = 'normal';
   this.getSiteinfo();
   this.rebuildLocalSiteinfo();
-  if(DEBUG) log(this.cacheInfo);
+  log(this.info);
   if(WIDGET) this.createPattern();
-  GM_registerMenuCommand('LDR Full Feed - reset cache', function(){ self.resetSiteinfo.apply(self, []); });
+  GM_registerMenuCommand('LDR Full Feed - reset cache', function(){ self.resetSiteinfo.call(self)});
   if(this.state == 'first') this.resetSiteinfo();
 }
 
 Cache.prototype.rebuildLocalSiteinfo = function(){
   this.siteinfo = SITE_INFO
-                  .map(function(i){
-                      i.urlIndex = -1;
-                      return i;
-                  });
+    .map(function(i){
+      i.urlIndex = -1;
+      return i;
+  });
 }
 
 Cache.prototype.getSiteinfo = function (){
-  if(!(this.cacheInfo = eval(GM_getValue('cache')))){
-    if(DEBUG) log('CACHE: first');
+  if(!(this.info = eval(GM_getValue('cache')))){
+    log('CACHE: first');
     this.state = 'first';
-    var t = {info:{}};
-    PHASE.forEach(function(i){t.info[i.type] = []});
-    this.cacheInfo = t;
+    var t = {};
+    PHASE.forEach(function(i){t[i.type] = []});
+    this.info = {
+      ldrfullfeed  :  t,
+      autopagerize : [AUTOPAGERIZE_MICROFORMAT]
+    };
   }
 }
 
 Cache.prototype.resetSiteinfo = function(){
   if(this.state == 'loading') return message('Now loading. Please wait!');
   this.state = 'loading';
+  this.tmp_ldrfullfeed  = {};
+  this.tmp_autopagerize = [AUTOPAGERIZE_MICROFORMAT];
+
+  // identify
+  this.id = new Object;
   this.success = 0;
-  message('Resetting cache. Please wait...');
-  this.tmp = {};
+  var id = this.id;
+
   var self = this;
+
+  message('Resetting cache. Please wait...');
+
   PHASE.forEach(function(i){
-      self.tmp[i.type] = [];
-  });
+      this.tmp_ldrfullfeed[i.type] = [];
+  },this);
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
       var name = obj.name || obj.url;
       var opt = {
@@ -442,20 +581,35 @@ Cache.prototype.resetSiteinfo = function(){
           'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onload: function(res){
-          self.setSiteinfo.apply(self, [res, obj, index]);
+          self.setSiteinfo.call(self, [res, obj, index, id]);
         },
         onerror: function(res){
-          self.error.apply(self, ['Cache Request Error'+name]);
+          self.error.call(self, 'Cache Request Error'+name);
+        },
+      }
+      window.setTimeout(GM_xmlhttpRequest, 0, opt);
+  });
+  AUTOPAGERIZE_SITEINFO_IMPORT_URLS.forEach(function(obj, index){
+      var name = obj.name || obj.url;
+      var opt = {
+        method: 'GET',
+        url: obj.url,
+        headers: {
+          'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
+        },
+        onload: function(res){
+          self.setAutoPagerSiteinfo.call(self, [res, obj, index, id]);
+        },
+        onerror: function(res){
+          self.error.call(self, 'Cache Request Error'+name);
         },
       }
       window.setTimeout(GM_xmlhttpRequest, 0, opt);
   });
 }
 
-Cache.prototype.setSiteinfo = function(res, obj, index){
-  var self = this;
+Cache.prototype.setSiteinfo = function([res, obj, index, id]){
   var info = [];
-  var data = {};
   var name = obj.name || obj.url;
   switch (obj.format.toUpperCase()){
     case 'JSON':
@@ -468,7 +622,7 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
             d.urlIndex = index;
             return d;
           })
-          .filter(function(i){ return (Cache.isValid(i) && i.type)? true : false});
+          .filter(function(i){ return (this.isValid(i) && i.type)? true : false},this);
       } catch(e) {
         return this.error('Not JSON: '+name);
       }
@@ -483,42 +637,74 @@ Cache.prototype.setSiteinfo = function(res, obj, index){
 
       $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
       .forEach(function(siteinfo_list){
-        var data = self.parseSiteinfo.apply(self, [siteinfo_list.value, index]);
+        var data = this.parseSiteinfo.call(this, [siteinfo_list.value, index]);
         if (data)
           info.push(data);
-      });
+      },this);
 
       var charsets = ['utf-8','euc-jp','shift_jis'];
       charsets.forEach(function(charset){
         $X('//ul[contains(concat(" ",normalize-space(@class)," "), " microformats_list ' + charset + ' ")]/li', doc)
         .forEach(function(microformats_data){
-          var data = self.parseMicroformats.apply(self, [charset, microformats_data, index]);
+          var data = this.parseMicroformats.call(this, [charset, microformats_data, index]);
           if(data)
             info.push(data);
-        });
-      });
+        },this);
+      },this);
       break;
   }
-  PHASE.forEach(function(i){
-      info.filter(function(d){ return (d.type.toUpperCase() == i.type
-          || (i.sub && d.type.toUpperCase() == i.sub))? true : false })
-          .forEach(function(d){ self.tmp[i.type].push(d) });
-      self.tmp[i.type].sort(function(a,b){ return a.urlIndex - b.urlIndex});
-      if(DEBUG) log('CACHE: ' + i.type + ':ok');
-  });
-  ++this.success
-  if(DEBUG) log(name);
-  if (this.tmp && this.success == SITEINFO_IMPORT_URLS.length ) {
-    this.cacheInfo = {
-      info: this.tmp,
-    }
-    GM_setValue('cache', this.cacheInfo.toSource());
-    if(DEBUG) log(this.cacheInfo);
-    if(WIDGET) this.createPattern();
-    var name = obj.name || '';
-    message('Resetting cache. Please wait... Done');
-    this.state = 'normal';
+  if(this.id === id){
+    PHASE.forEach(function(i){
+      info.filter(function(d){
+            return (d.type.toUpperCase() == i.type
+            || (i.sub && d.type.toUpperCase() == i.sub))? true : false 
+          })
+          .forEach(function(d){
+            this.tmp_ldrfullfeed[i.type].push(d) 
+          },this);
+      this.tmp_ldrfullfeed[i.type].sort(function(a,b){
+        return a.urlIndex - b.urlIndex
+      });
+      log('CACHE: ' + i.type + ':ok');
+    },this);
+    if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+      this.requestEnd();
   }
+}
+
+Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
+  var info = [];
+  var name = obj.name || obj.url;
+  try {
+    info = eval(res.responseText)
+        .reduce(function(sum,i){
+          var d = i.data;
+          d.name = i.name;
+          sum.push(d);
+          return sum;
+        },[]);
+  } catch(e) {
+    return this.error('Not JSON: '+name);
+  }
+  if(this.id === id){
+    info.map(function(i){this.tmp_autopagerize.push(i)},this);
+
+    if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+      this.requestEnd();
+  }
+}
+
+Cache.prototype.requestEnd = function(){
+  log(name);
+  this.info = {
+    ldrfullfeed  : this.tmp_ldrfullfeed,
+    autopagerize : this.tmp_autopagerize
+  };
+  GM_setValue('cache', this.info.toSource());
+  log(this.info);
+  if(WIDGET) this.createPattern();
+  message('Resetting cache. Please wait... Done');
+  this.state = 'normal';
 }
 
 Cache.prototype.error = function(e){
@@ -526,7 +712,7 @@ Cache.prototype.error = function(e){
   this.state = 'normal';
 }
 
-Cache.prototype.parseMicroformats = function(c, li, index){
+Cache.prototype.parseMicroformats = function([c, li, index]){
   if(!li) return;
   var info = {
     name : "MicroformatsURLList:"+li.textContent,
@@ -549,7 +735,7 @@ Cache.prototype.parseMicroformats = function(c, li, index){
   return isValidUrl(info) ? info : null;
 }
 
-Cache.prototype.parseSiteinfo = function(text){
+Cache.prototype.parseSiteinfo = function([text, index]){
   var lines = text.split(/[\r\n]+/);
   var reg = /(^[^:]*?):(.*)$/;
   var trimspace = function(str){
@@ -564,7 +750,7 @@ Cache.prototype.parseSiteinfo = function(text){
 
   info.microformats = (info.microformats && info.microformats == 'true')? true: false;
 
-  return Cache.isValid(info) ? info : null;
+  return this.isValid(info) ? info : null;
 }
 
 Cache.prototype.createPattern = function(){
@@ -575,17 +761,22 @@ Cache.prototype.createPattern = function(){
     exps.push(i.url);
   });
 
-  for each (var i in this.cacheInfo.info) {
+  for each (var i in this.info.ldrfullfeed) {
     i.forEach(function(info) {
       exps.push(info.url);
     });
   }
-
+  // AutoPagerizeの情報にはcharset情報がないので。
+  /*
+  this.info.autopagerize.forEach(function(i){
+    exps.push(i.url);
+  });
+  */
   reg = new RegExp (exps.join('|'));
   this.pattern = reg;
 }
 
-Cache.isValid = function(info) {
+Cache.prototype.isValid = function(info) {
   var infoProp = ['url', 'xpath', 'type'];
   if (infoProp.some(function(i){
     if (!info[i]){
@@ -605,21 +796,32 @@ Cache.isValid = function(info) {
 
 // [Register LDR]
 
-var getItem = function(item){
-  if(item){
-    this.item = item;
-  } else {
-    this.item = w.get_active_item(true);
-  }
-  if(!this.item) return;
-  this.feed = w.get_active_feed();
+/* data format
+ *
+ *   itemURL
+ *   feedURL
+ *   id
+ *   title
+ *   container
+ *   title
+ *   item           <-- unsafe item
+ *   found
+ *
+ *   create safe item
+ */
+var getData = function(id){
+  if(!id) var id = w.get_active_item(true).id;
+  if(!id) return;
+  var feed = w.get_active_feed();
+
+  this.item = w.get_item_info(id);
   this.itemURL = this.item.link;
-  this.feedURL = this.feed.channel.link;
+  this.feedURL = feed.channel.link;
   this.id = this.item.id;
-  this.item_container = w.$('item_' + this.id);
+  this.container = w.$('item_' + this.id);
   this.title = this.item.title;
   this.found = false;
-  
+
 };
 
 var launchFullFeed = function(list, c) {
@@ -628,7 +830,7 @@ var launchFullFeed = function(list, c) {
       var reg = new RegExp(i.url);
       if (reg.test(c.itemURL) || reg.test(c.feedURL)) {
         c.found = true;
-        var ff = new FullFeed(i, c);
+        new FullFeed(i, c);
         return true;
       } else {
         return false;
@@ -641,15 +843,14 @@ var loadCurrentEntry = function(){
 };
 
 var loadAllEntries = function(){
-  var entries = w.get_active_feed().items;
-  if (entries && entries.length > 0)
-  entries.forEach(function(i){ init(i)});
+  var items = w.get_active_feed().items;
+  if (items && items.length > 0)
+  items.forEach(function(item){ init(item.id)});
 };
 
-var init = function(i){
-  var c = (i) ? new getItem(i) : new getItem();
-  if(!c.item) return;
-
+var init = function(id){
+  var c = (id) ? new getData(id) : new getData();
+  if(!c) return;
   if(ITEMFILTER){
     FullFeed.itemFilters.forEach(function(f) {
       f(c);
@@ -658,24 +859,27 @@ var init = function(i){
 
   if(ADCHECKER.test(c.title))
     return message('This entry is advertisement');
-  if(w.hasClass(c.item_container, 'gm_fullfeed_loaded'))
-    return message('This entry has been already loaded.');
-  if(w.hasClass(c.item_container, 'gm_fullfeed_loading'))
+  if(w.hasClass(c.container, 'gm_fullfeed_loaded')){
+    if(AUTOPAGER && FullFeed.fullfeed['_'+c.id]){
+      FullFeed.fullfeed['_'+c.id].AutoPager();
+      return;
+    }
+    else return message('This entry has been already loaded.');
+  }
+  if(w.hasClass(c.container, 'gm_fullfeed_loading'))
     return message('Now loadig...');
 
-
-  launchFullFeed(cache.siteinfo, c);
-  if(DEBUG) log('PHASE: LOCAL SITEINFO');
-
-  if(!c.found && !PHASE.some(function(i){
-      if(DEBUG) log('PHASE: ' + i.type);
-      launchFullFeed(cache.cacheInfo.info[i.type], c);
-      if(c.found) {
-        return true;
-      }
-  })){
-    message('This entry is not listed on SITE_INFO');
-    if (OPEN) window.open(c.itemURL) || message('Cannot popup');
+  if(!c.item.fullfeed){
+    launchFullFeed(cache.siteinfo, c);
+    log('PHASE: LOCAL SITEINFO');
+    if(!c.found && !PHASE.some(function(i){
+        log('PHASE: ' + i.type);
+        launchFullFeed(cache.info.ldrfullfeed[i.type], c);
+        return c.found;
+    })){
+      message('This entry is not listed on SITE_INFO');
+      if (OPEN) GM_openInTab(c.itemURL) || message('Cannot popup');
+    }
   }
 };
 
@@ -712,24 +916,12 @@ function message (mes){
   w.message(mes);
 }
 
-function id2item (id){
-  var t;
-  var items = w.get_active_feed().items;
-  if(items.some(function(item){
-    if(id == item.id){
-      t = item;
-      return true;
-    }
-  })) return t;
-  else return null;
-}
-
 function getElementsByMicroformats (htmldoc) {
   var t;
   MICROFORMATS.some(function(i){
     t = $X(i.xpath, htmldoc)
     if(t.length>0){
-      if(DEBUG) log('FULLFEED: Microformats :' + i.name);
+      log('FULLFEED: Microformats :' + i.name);
       return true;
     }
     else return false;
@@ -809,28 +1001,37 @@ function searchEntry(htmldoc) {
 
 // written by id:Yuichirou
 function relativeToAbsolutePath(htmldoc, base) {
-  var top = base.match("^https?://[^/]+")[0];
-  var current = base.replace(/\/[^\/]+$/, '/');
+  var o = {
+    top : base.match("^https?://[^/]+")[0],
+    current : base.replace(/\/[^\/]+$/, '/'),
+  }
 
   $X("descendant-or-self::a", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("href")) elm.href = _rel2abs(elm.getAttribute("href"), top, current);
+    if(elm.getAttribute("href")) elm.href = rel2abs(elm.getAttribute("href"), o);
   });
   $X("descendant-or-self::img", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("src")) elm.src = _rel2abs(elm.getAttribute("src"), top, current);
+    if(elm.getAttribute("src")) elm.src = rel2abs(elm.getAttribute("src"), o);
   });
   $X("descendant-or-self::embed", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("src")) elm.src = _rel2abs(elm.getAttribute("src"), top, current);
+    if(elm.getAttribute("src")) elm.src = rel2abs(elm.getAttribute("src"), o);
   });
   $X("descendant-or-self::object", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("data")) elm.data = _rel2abs(elm.getAttribute("data"), top, current);
+    if(elm.getAttribute("data")) elm.data = rel2abs(elm.getAttribute("data"), o);
   });
 }
 
-function _rel2abs(url, top, current) {
+function rel2abs(url, base) {
+  if(typeof(base) == 'object'){
+    var top = base.top;
+    var current = base.current;
+  }else{
+    var top = base.match("^https?://[^/]+")[0];
+    var current = base.replace(/\/[^\/]+$/, '/');
+  }
   if (url.match("^https?://")) {
     return url;
   } else if (url.indexOf("/") == 0) {
@@ -958,11 +1159,11 @@ function addStyle(css,id){ // GM_addStyle is slow
 }
 
 // %o %s %i
-function log() {if(console) console.log.apply(console, Array.slice(arguments));}
-function group() {if(console) console.group.apply(console, Array.slice(arguments))}
-function groupEnd() {if(console) console.groupEnd();}
+function log() {if(console && DEBUG) console.log.apply(console, Array.slice(arguments));}
+function group() {if(console && DEBUG) console.group.apply(console, Array.slice(arguments))}
+function groupEnd() {if(console &&DEBUG) console.groupEnd();}
 
-function time(name) {if(console) console.time.apply(console, [arguments[0]])}
-function timeEnd(name) {if(console) console.timeEnd.apply(console, [arguments[0]])}
+function time(name) {if(console.time && DEBUG) console.time.apply(console, [arguments[0]])}
+function timeEnd(name) {if(console.timeEnd && DEBUG) console.timeEnd.apply(console, [arguments[0]])}
 
 })(this.unsafeWindow || this);
