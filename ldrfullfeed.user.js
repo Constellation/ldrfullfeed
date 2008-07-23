@@ -68,15 +68,6 @@ const SITEINFO_IMPORT_URLS = [
 
 const AUTOPAGERIZE_SITEINFO_IMPORT_URLS = [
 {
-  name:'Wedata AutoPagerize',
-  format:'JSON',
-  url: 'http://wedata.net/databases/AutoPagerize/items.json'
-}
-];
-// == [SITE_INFO] ===================================================
-
-const SITE_INFO = [
-];
 
 const MICROFORMATS = [
   {
@@ -181,7 +172,7 @@ FullFeed.prototype.load = {
     } catch(e) {
       return this.error('HTML Parse Error');
     }
-  
+
     time('FULLFEED: DocumentFilterTime: ');
     FullFeed.documentFilters.forEach(function(f) {
       f(htmldoc, this.requestURL, this.info);
@@ -656,14 +647,13 @@ Cache.prototype.setSiteinfo = function([res, obj, index, id]){
   if(this.id === id){
     PHASE.forEach(function(i){
       info.filter(function(d){
-            return (d.type.toUpperCase() == i.type
-            || (i.sub && d.type.toUpperCase() == i.sub))? true : false 
+            return (d.type.toUpperCase() == i.type || (i.sub && d.type.toUpperCase() == i.sub))? true : false ;
           })
           .forEach(function(d){
-            this.tmp_ldrfullfeed[i.type].push(d) 
+            this.tmp_ldrfullfeed[i.type].push(d);
           },this);
       this.tmp_ldrfullfeed[i.type].sort(function(a,b){
-        return a.urlIndex - b.urlIndex
+        return a.urlIndex - b.urlIndex;
       });
       log('CACHE: ' + i.type + ':ok');
     },this);
@@ -1119,7 +1109,7 @@ function $X (exp, context, type /* want type */) {
 
 // copied from LDR-Prefav (c) id:brazil
 function filter(a, f) {
-	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
+  for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
 }
 
 // copied from Pagerization (c) id:ofk
@@ -1152,10 +1142,10 @@ function pathToURL(url, path) {
 
 // copied from LDRize (c) id:snj14
 function addStyle(css,id){ // GM_addStyle is slow
-	var link = document.createElement('link');
-	link.rel = 'stylesheet';
-	link.href = 'data:text/css,' + escape(css);
-	document.documentElement.childNodes[0].appendChild(link);
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'data:text/css,' + escape(css);
+  document.documentElement.childNodes[0].appendChild(link);
 }
 
 // %o %s %i
