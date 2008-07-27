@@ -676,13 +676,22 @@ Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
   var info = [];
   var name = obj.name || obj.url;
   try {
-    info = eval(res.responseText)
+    if(Array.reduce){
+      info = eval(res.responseText)
         .reduce(function(sum,i){
           var d = i.data;
           d.name = i.name;
           sum.push(d);
           return sum;
         },[]);
+    } else {
+      info = eval(res.responseText)
+        .map(function(sum, i){
+          var d = i.data;
+          d.name = i.name;
+          return d;
+        });
+    }
   } catch(e) {
     return this.error('Not JSON: '+name);
   }
