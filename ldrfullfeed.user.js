@@ -51,7 +51,7 @@ const CLICKABLE = true;
 const USE_AUTOPAGERIZE_SITEINFO = true;
 const AUTOPAGER = true;
 
-const DEBUG = true;
+const DEBUG = false;
 
 const SITEINFO_IMPORT_URLS = [
 {
@@ -142,6 +142,7 @@ FullFeed.prototype.request = function(){
   if (!this.requestURL) return;
   this.state = 'request';
   var self = this;
+  console.info(this);
   var opt = {
         method: 'get',
         url: this.requestURL,
@@ -153,7 +154,7 @@ FullFeed.prototype.request = function(){
           self.error.call(self, 'FullFeed Request Error');
         },
         onload: function(res){
-          self.load[self.type].call(self, res)
+          self.load.call(self, res)
         },
   };
   message('Loading '+this.type+' ...');
@@ -163,159 +164,113 @@ FullFeed.prototype.request = function(){
   window.setTimeout(GM_xmlhttpRequest, 0, opt);
 }
 
-FullFeed.prototype.load = {
-  FullFeed :function(res) {
-    this.state = 'loading';
-    var text = res.responseText;
-    var self = this;
+FullFeed.prototype.load = function(res){
+  this.state = 'loading';
+  var text = res.responseText;
+  var self = this;
 
-    try {
-      text = text.replace(FullFeed.regs.text, "$1");
-      if (REMOVE_IFRAME)  text = text.replace(FullFeed.regs.iframe, "");
-      var htmldoc = parseHTML(text);
-      removeXSSRisk(htmldoc);
-      if(res.finalUrl){
-        this.requestURL = res.finalUrl;
-        relativeToAbsolutePath(htmldoc, this.requestURL);
-      } else {
-        relativeToAbsolutePath(htmldoc, this.requestURL);
-      }
-    } catch(e) {
-      return this.error('HTML Parse Error');
+  try {
+    text = text.replace(FullFeed.regs.text, "$1");
+    if (REMOVE_IFRAME)  text = text.replace(FullFeed.regs.iframe, "");
+    var htmldoc = parseHTML(text);
+    removeXSSRisk(htmldoc);
+    if(res.finalUrl){
+      this.requestURL = res.finalUrl;
+      relativeToAbsolutePath(htmldoc, this.requestURL);
+    } else {
+      relativeToAbsolutePath(htmldoc, this.requestURL);
     }
-
-    time('FULLFEED: DocumentFilterTime: ');
-    FullFeed.documentFilters.forEach(function(f) {
-      f(htmldoc, this.requestURL, this.info);
-    },this);
-    timeEnd('FULLFEED: DocumentFilterTime: ');
-
-
-    if(USE_AUTOPAGERIZE_SITEINFO || AUTOPAGER)
-      this.apList = Manager.info.autopagerize
-        .filter(function({url:aUrl}){
-          return new RegExp(aUrl).test(this.requestURL);
-        },this)
-        .sort(function(a, b){ return (b.url.length - a.url.length) });
-
-    if(this.info.microformats){
-      log('FULLFEED: Microformats')
-      this.entry = getElementsByMicroformats(htmldoc)
-    }
-
-    if(this.entry.length == 0){
-      try{
-        this.entry = $X(this.info.xpath, htmldoc, Array);
-      } catch(e) {
-        return this.error('Something is wrong with this XPath');
-      }
-    }
-
-    if(USE_AUTOPAGERIZE_SITEINFO && this.entry.length == 0){
-      log(this.apList)
-      this.apList.some(function(i){
-        if(i.name=='hAtom' || i.name=='autopagerize_microformat') return false;
-        try {
-          var entry = $X(i.pageElement, htmldoc, Array);
-        } catch(e) { return false }
-        if(entry.length>0){
-          this.entry = entry;
-          log('FULLFEED: AutoPagerize Siteinfo');
-          return true;
-        }
-        else return false;
-      },this);
-    }
-
-    if(AUTO_SEARCH && this.entry.length == 0){
-      log('FULLFEED: Auto Search');
-      this.entry = searchEntry(htmldoc);
-    }
-
-    if(EXTRACT_TEXT && this.entry.length == 0){
-      log('FULLFEED: Extract Text');
-      this.entry = extractText(htmldoc);
-    }
-
-    if (this.entry.length > 0) {
-      if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
-      log(this.entry);
-      this.removeEntry();
-      time('FULLFEED: FilterTime: ');
-      FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) },this);
-      timeEnd('FULLFEED: FilterTime: ');
-
-      this.addEntry();
-
-      this.requestEnd();
-    } else return this.error('This SITE_INFO is unmatched to this entry');
-  },
-  AutoPager: function(res){
-    this.state = 'loading';
-    var text = res.responseText;
-    var self = this;
-    try {
-      text = text.replace(FullFeed.regs.text, "$1");
-      if (REMOVE_IFRAME)  text = text.replace(FullFeed.regs.iframe, "");
-      var htmldoc = parseHTML(text);
-      removeXSSRisk(htmldoc);
-      if(res.finalUrl){
-        this.requestURL = res.finalUrl;
-        relativeToAbsolutePath(htmldoc, this.requestURL);
-      } else {
-        relativeToAbsolutePath(htmldoc, this.requestURL);
-      }
-    } catch(e) {
-      return this.error('HTML Parse Error');
-    }
-
-    time('FULLFEED: DocumentFilterTime: ');
-    FullFeed.documentFilters.forEach(function(f) {
-      f(htmldoc, this.requestURL, this.info);
-    },this);
-    timeEnd('FULLFEED: DocumentFilterTime: ');
-
-    try {
-      this.entry = $X(this.ap.pageElement, htmldoc, Array);
-      this.nextLink = $X(this.ap.nextLink, htmldoc);
-    } catch(e) {
-      this.enable = false;
-    }
-
-    if (this.entry.length > 0) {
-      if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
-      var df = document.createDocumentFragment();
-      this.entry.forEach(function(i){ df.appendChild(i) });
-      this.entry = Array.slice(df.childNodes);
-      log(this.entry);
-
-      time('FULLFEED: FilterTime: ');
-      FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) },this);
-      timeEnd('FULLFEED: FilterTime: ');
-
-      this.createPager();
-      this.addEntry();
-
-      this.requestEnd();
-    }
-    else return this.error('This SITE_INFO is unmatched to this entry');
+  } catch(e) {
+    return this.error('HTML Parse Error');
   }
+
+  time('FULLFEED: DocumentFilterTime: ');
+  FullFeed.documentFilters.forEach(function(f) {
+    f(htmldoc, this.requestURL, this.info);
+  },this);
+  timeEnd('FULLFEED: DocumentFilterTime: ');
+  this['get'+this.type](htmldoc);
 }
 
-FullFeed.prototype.createPager = function(){
-  var pager = document.createRange();
-  var p = pager.createContextualFragment('<hr/><p class="gm_fullfeed_pager">page <a class="gm_fullfeed_link" href="'+this.requestURL+'">'+(++this.pageNum || (this.pageNum=2))+'</a></p>');
-  this.data.item_body.appendChild(p);
-  pager.detach();
+FullFeed.prototype.getFullFeed = function(htmldoc){
+  this.entry = [];
+  if(this.info.microformats){
+    log('FULLFEED: Microformats')
+    this.entry = getElementsByMicroformats(htmldoc)
+  }
+
+  if(this.entry.length == 0){
+    try{
+      this.entry = $X(this.info.xpath, htmldoc);
+    } catch(e) {
+      return this.error('Something is wrong with this XPath');
+    }
+  }
+
+  if(USE_AUTOPAGERIZE_SITEINFO || AUTOPAGER)
+    this.apList = Manager.info.autopagerize
+      .filter(function({url}){
+        return new RegExp(url).test(this.requestURL);
+      }, this)
+      .sort(function(a, b){ return (b.url.length - a.url.length) });
+
+  if(USE_AUTOPAGERIZE_SITEINFO && this.entry.length == 0){
+    log(this.apList)
+    this.apList.some(function(i){
+      if(i.name=='hAtom' || i.name=='autopagerize_microformat') return false;
+      try {
+        var entry = $X(i.pageElement, htmldoc);
+      } catch(e) { return false }
+      if(entry.length>0){
+        this.entry = entry;
+        log('FULLFEED: AutoPagerize Siteinfo');
+        return true;
+      }
+      else return false;
+    },this);
+  }
+
+  if(AUTO_SEARCH && this.entry.length == 0){
+    log('FULLFEED: Auto Search');
+    this.entry = searchEntry(htmldoc);
+  }
+
+  if(EXTRACT_TEXT && this.entry.length == 0){
+    log('FULLFEED: Extract Text');
+    this.entry = extractText(htmldoc);
+  }
+
+  this.requestEnd(htmldoc);
 }
 
-FullFeed.prototype.requestEnd = function(){
-  this.state = 'loaded';
-  message('Loading '+this.type+' ...Done');
-  if(AUTOPAGER && !FullFeed.fullfeed['_'+this.data.id]) FullFeed.fullfeed['_'+this.data.id] = this;
-  w.addClass(this.data.container, 'gm_fullfeed_loaded');
-  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
-  w.toggleClass(this.data.container, this.requestURL);
+FullFeed.prototype.getAutoPager = function(htmldoc){
+  try {
+    this.entry = $X(this.info.xpath, htmldoc);
+    (this.entry.length == 0) && (this.entry = $X(this.ap.pageElement, htmldoc));
+    this.nextLink = $X(this.ap.nextLink, htmldoc);
+  } catch(e) {
+    this.enable = false;
+  }
+  this.requestEnd(htmldoc);
+}
+
+FullFeed.prototype.requestEnd = function(htmldoc){
+  if (this.entry.length > 0) {
+    if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
+    log(this.entry);
+    time('FULLFEED: FilterTime: ');
+    FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) }, this);
+    timeEnd('FULLFEED: FilterTime: ');
+
+    this.addEntry();
+    this.state = 'loaded';
+    message('Loading '+this.type+' ...Done');
+    if(AUTOPAGER && !FullFeed.fullfeed['_'+this.data.id]) FullFeed.fullfeed['_'+this.data.id] = this;
+    w.addClass(this.data.container, 'gm_fullfeed_loaded');
+    w.toggleClass(this.data.container, 'gm_fullfeed_loading');
+    w.toggleClass(this.data.container, this.requestURL);
+  }
+  else return this.error('This SITE_INFO is unmatched to this entry');
 }
 
 FullFeed.prototype.error = function(e){
@@ -325,14 +280,23 @@ FullFeed.prototype.error = function(e){
   w.toggleClass(this.data.container, 'gm_fullfeed_loading');
 }
 
-FullFeed.prototype.removeEntry = function(){
-  while (this.data.item_body.firstChild) {
-    this.data.item_body.removeChild(this.data.item_body.firstChild);
-  }
+FullFeed.prototype.createSpaceFullFeed = function(){
+  var range = document.createRange();
+  range.selectNodeContents(this.data.item_body);
+  range.deleteContents();
+  range.detach();
+  return document.createDocumentFragment();
+}
+
+FullFeed.prototype.createSpaceAutoPager = function(){
+  var pager = document.createRange();
+  var p = pager.createContextualFragment('<hr/><p class="gm_fullfeed_pager">page <a class="gm_fullfeed_link" href="'+this.requestURL+'">'+(++this.pageNum || (this.pageNum=2))+'</a></p>');
+  pager.detach();
+  return p;
 }
 
 FullFeed.prototype.addEntry = function(){
-  var df = document.createDocumentFragment();
+  var df = this['createSpace'+this.type]();
   this.entry.forEach(function(i){
     try {
       i = document.adoptNode(i, true);
@@ -341,6 +305,7 @@ FullFeed.prototype.addEntry = function(){
     }
     df.appendChild(i);
   });
+  console.info(this.data.item_body);
   this.data.item_body.appendChild(df);
 }
 
@@ -352,7 +317,11 @@ FullFeed.prototype.AutoPager = function (){
   var nextLink = this.nextLink.getAttribute('href') ||
     this.nextLink.getAttribute('action') ||
     this.nextLink.getAttribute('value');
-  nextLink = rel2abs(nextLink, this.requestURL);
+  var base = this.requestURL;
+  nextLink = rel2abs(nextLink, {
+    top : base.match(rel2abs.regs.top)[0],
+    current : base.replace(rel2abs.regs.current1, '/'),
+  });
   this.requestURL = nextLink;
   this.type = 'AutoPager';
   this.request();
@@ -365,7 +334,7 @@ FullFeed.prototype.searchAutoPagerData = function (htmldoc){
     if(!this.ap){
       if( this.apList.some(function(i){
         if((nextLink = $X(i.nextLink, htmldoc)[0]) &&
-          ($X(i.pageElement, htmldoc, Array).length>0)){
+          ($X(i.pageElement, htmldoc).length>0)){
             this.ap = i;
             this.enable = true;
             return true;
@@ -462,7 +431,6 @@ FullFeed.register = function(){
     if(this.className && this.className == 'gm_fullfeed_icon')
       Manager.check(id);
   }
-
 }
 
 
@@ -1040,7 +1008,6 @@ function rel2abs(url, {top, current}) {
     return current + url;
   }
 }
-
 rel2abs.regs = {
   top: /^https?:\/\/[^\/]+/,
   home: /^https?:\/\//,
@@ -1049,7 +1016,6 @@ rel2abs.regs = {
   url: /^\.+\//,
 
 }
-
 
 function filter(a, f) {
 	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
