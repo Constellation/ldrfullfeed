@@ -7,7 +7,14 @@
 // @version     0.0.18
 // @resource    orange  http://utatane.tea.googlepages.com/orange.gif
 // @resource    blue    http://utatane.tea.googlepages.com/blue.gif
+// @require     http://gist.github.com/3242.txt
 // @author      Constellation
+// using [ simple version of $X   ] (c) id:os0x
+//       [ relativeToAbsolutePath ] (c) id:Yuichirou
+//       [ filter                 ] copied from LDR-Prefav   (c) id:brazil
+//       [ parseHTML              ] copied from Pagerization (c) id:ofk
+//       [ addStyle               ] copied from LDRize       (c) id:snj14
+// thanks
 // ==/UserScript==
 
 (function(w){
@@ -519,58 +526,19 @@ window.FullFeed.addFilter(function(nodes, url){
 });
 
 
-// [Cache Manager]
+// [Cache]
 
-var Cache = function(){
+var Cache = function(manager){
   var self = this;
-  this.pattern;
-  this.state = 'normal';
-  this.getSiteinfo();
-  this.rebuildLocalSiteinfo();
-  log(this.info);
-  if(WIDGET) this.createPattern();
-  GM_registerMenuCommand('LDR Full Feed - reset cache', function(){ self.resetSiteinfo.call(self)});
-  if(this.state == 'first') this.resetSiteinfo();
-}
-
-Cache.prototype.rebuildLocalSiteinfo = function(){
-  this.siteinfo = SITE_INFO
-    .map(function(i){
-      i.urlIndex = -1;
-      return i;
-  });
-}
-
-Cache.prototype.getSiteinfo = function (){
-  if(!(this.info = eval(GM_getValue('cache')))){
-    log('CACHE: first');
-    this.state = 'first';
-    var t = {};
-    PHASE.forEach(function(i){t[i.type] = []});
-    this.info = {
-      ldrfullfeed  :  t,
-      autopagerize : [AUTOPAGERIZE_MICROFORMAT]
-    };
-  }
-}
-
-Cache.prototype.resetSiteinfo = function(){
-  if(this.state == 'loading') return message('Now loading. Please wait!');
-  this.state = 'loading';
-  this.tmp_ldrfullfeed  = {};
-  this.tmp_autopagerize = [AUTOPAGERIZE_MICROFORMAT];
-
-  // identify
-  this.id = new Object;
+  this.manager = manager;
+  manager.state = 'loading';
+  this.ldrfullfeed  = {};
+  this.autopagerize = [AUTOPAGERIZE_MICROFORMAT];
   this.success = 0;
-  var id = this.id;
-
-  var self = this;
-
   message('Resetting cache. Please wait...');
 
   PHASE.forEach(function(i){
-      this.tmp_ldrfullfeed[i.type] = [];
+      this.ldrfullfeed[i.type] = [];
   },this);
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
       var name = obj.name || obj.url;
@@ -581,7 +549,7 @@ Cache.prototype.resetSiteinfo = function(){
           'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onload: function(res){
-          self.setSiteinfo.call(self, [res, obj, index, id]);
+          self.setSiteinfo.call(self, [res, obj, index]);
         },
         onerror: function(res){
           self.error.call(self, 'Cache Request Error'+name);
@@ -598,7 +566,7 @@ Cache.prototype.resetSiteinfo = function(){
           'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
         },
         onload: function(res){
-          self.setAutoPagerSiteinfo.call(self, [res, obj, index, id]);
+          self.setAutoPagerSiteinfo.call(self, [res, obj, index]);
         },
         onerror: function(res){
           self.error.call(self, 'Cache Request Error'+name);
@@ -608,7 +576,7 @@ Cache.prototype.resetSiteinfo = function(){
   });
 }
 
-Cache.prototype.setSiteinfo = function([res, obj, index, id]){
+Cache.prototype.setSiteinfo = function([res, obj, index]){
   var info = [];
   var name = obj.name || obj.url;
   switch (obj.format.toUpperCase()){
@@ -618,11 +586,11 @@ Cache.prototype.setSiteinfo = function([res, obj, index, id]){
           .map(function(i){
             var d = i.data;
             d.name = i.name;
-            d.microformats = (d.microformats == 'true')? true: false;
+            d.microformats = (d.microformats == 'true');
             d.urlIndex = index;
             return d;
           })
-          .filter(function(i){ return (this.isValid(i) && i.type)? true : false},this);
+          .filter(function(i){ return (this.isValid(i) && i.type) },this);
       } catch(e) {
         return this.error('Not JSON: '+name);
       }
@@ -637,7 +605,7 @@ Cache.prototype.setSiteinfo = function([res, obj, index, id]){
 
       $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
       .forEach(function(siteinfo_list){
-        var data = this.parseSiteinfo.call(this, [siteinfo_list.value, index]);
+        var data = Cache.parseSiteinfo.call(this, [siteinfo_list.value, index]);
         if (data)
           info.push(data);
       },this);
@@ -646,30 +614,28 @@ Cache.prototype.setSiteinfo = function([res, obj, index, id]){
       charsets.forEach(function(charset){
         $X('//ul[contains(concat(" ",normalize-space(@class)," "), " microformats_list ' + charset + ' ")]/li', doc)
         .forEach(function(microformats_data){
-          var data = this.parseMicroformats.call(this, [charset, microformats_data, index]);
+          var data = Cache.parseMicroformats.call(this, [charset, microformats_data, index]);
           if(data)
             info.push(data);
         },this);
       },this);
       break;
   }
-  if(this.id === id){
-    PHASE.forEach(function(i){
-      info.filter(function(d){
-            return (d.type.toUpperCase() == i.type
-            || (i.sub && d.type.toUpperCase() == i.sub))? true : false;
-          })
-          .forEach(function(d){
-            this.tmp_ldrfullfeed[i.type].push(d);
-          },this);
-      this.tmp_ldrfullfeed[i.type].sort(function(a,b){
-        return a.urlIndex - b.urlIndex;
-      });
-      log('CACHE: ' + i.type + ':ok');
-    },this);
-    if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
-      this.requestEnd();
-  }
+  PHASE.forEach(function(i){
+    info.filter(function(d){
+          return (d.type.toUpperCase() == i.type
+          || (i.sub && d.type.toUpperCase() == i.sub));
+        })
+        .forEach(function(d){
+          this.ldrfullfeed[i.type].push(d);
+        }, this);
+    this.ldrfullfeed[i.type].sort(function(a,b){
+      return a.urlIndex - b.urlIndex;
+    });
+    log('CACHE: ' + i.type + ':ok');
+  }, this);
+  if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+    this.requestEnd();
 }
 
 Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
@@ -683,7 +649,7 @@ Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
           d.name = i.name;
           sum.push(d);
           return sum;
-        },[]);
+        }, []);
     } else {
       info = eval(res.responseText)
         .map(function(sum, i){
@@ -695,33 +661,30 @@ Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
   } catch(e) {
     return this.error('Not JSON: '+name);
   }
-  if(this.id === id){
-    info.map(function(i){this.tmp_autopagerize.push(i)},this);
-
-    if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
-      this.requestEnd();
-  }
+  info.map(function(i){ this.autopagerize.push(i) }, this);
+  if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+    this.requestEnd();
 }
 
 Cache.prototype.requestEnd = function(){
   log(name);
-  this.info = {
-    ldrfullfeed  : this.tmp_ldrfullfeed,
-    autopagerize : this.tmp_autopagerize
+  this.manager.info = {
+    ldrfullfeed  : this.ldrfullfeed,
+    autopagerize : this.autopagerize
   };
-  GM_setValue('cache', this.info.toSource());
-  log(this.info);
-  if(WIDGET) this.createPattern();
+  GM_setValue('cache', this.manager.info.toSource());
+  log(this.manager.info);
   message('Resetting cache. Please wait... Done');
-  this.state = 'normal';
+  this.manager.state = 'normal';
+  if(WIDGET) this.manager.createPattern();
 }
 
 Cache.prototype.error = function(e){
   message('Error: '+e);
-  this.state = 'normal';
+  this.manager.state = 'normal';
 }
 
-Cache.prototype.parseMicroformats = function([c, li, index]){
+Cache.parseMicroformats = function([c, li, index]){
   if(!li) return;
   var info = {
     name : "MicroformatsURLList:"+li.textContent,
@@ -744,7 +707,7 @@ Cache.prototype.parseMicroformats = function([c, li, index]){
   return isValidUrl(info) ? info : null;
 }
 
-Cache.prototype.parseSiteinfo = function([text, index]){
+Cache.parseSiteinfo = function([text, index]){
   var lines = text.split(/[\r\n]+/);
   var reg = /(^[^:]*?):(.*)$/;
   var trimspace = function(str){
@@ -757,35 +720,13 @@ Cache.prototype.parseSiteinfo = function([text, index]){
     }
   });
 
-  info.microformats = (info.microformats && info.microformats == 'true')? true: false;
+  info.microformats = (info.microformats && info.microformats == 'true');
 
-  return this.isValid(info) ? info : null;
+  return Cache.isValid(info) ? info : null;
 }
 
-Cache.prototype.createPattern = function(){
-  var exps = [];
-  var reg;
 
-  this.siteinfo.forEach(function(i){
-    exps.push(i.url);
-  });
-
-  for each (var i in this.info.ldrfullfeed) {
-    i.forEach(function(info) {
-      exps.push(info.url);
-    });
-  }
-  // AutoPagerizeの情報にはcharset情報がないので。
-  /*
-  this.info.autopagerize.forEach(function(i){
-    exps.push(i.url);
-  });
-  */
-  reg = new RegExp (exps.join('|'));
-  this.pattern = reg;
-}
-
-Cache.prototype.isValid = function(info) {
+Cache.isValid = function(info) {
   var infoProp = ['url', 'xpath', 'type'];
   if (infoProp.some(function(i){
     if (!info[i]){
@@ -803,121 +744,168 @@ Cache.prototype.isValid = function(info) {
   return true;
 }
 
-// [Register LDR]
+// [Manager]
+var Manager = {
+  info: null,
+  pattern: null,
+  state: 'normal',
 
-/* data format
- *
- *   itemURL
- *   feedURL
- *   id
- *   title
- *   container
- *   title
- *   item           <-- unsafe item
- *   found
- *
- *   create safe item
- */
-var getData = function(id){
-  if(!id) var id = w.get_active_item(true).id;
-  if(!id) return;
-  var feed = w.get_active_feed();
+  init: function(){
+    var self = this;
+    this.getSiteinfo();
+    this.rebuildLocalSiteinfo();
+    log(this.info);
+    if(WIDGET) this.createPattern();
+    if(LOADING_MOTION) addStyle(CSS, 'gm_fullfeed_style');
+    GM_registerMenuCommand('LDR Full Feed - reset cache', function(){ self.resetSiteinfo.call(self)});
+    var id = setTimeout(function() {
+      if (id) clearTimeout(id);
+      if (typeof w.Keybind != 'undefined' && typeof w.entry_widgets != 'undefined') {
+        w.Keybind.add(KEY, function(){
+          self.loadCurrentEntry();
+        });
 
-  this.item = w.get_item_info(id);
-  this.itemURL = this.item.link;
-  this.feedURL = feed.channel.link;
-  this.id = this.item.id;
-  this.container = w.$('item_' + this.id);
-  this.title = this.item.title;
-  this.found = false;
+        if(GET_ALL)
+          w.Keybind.add(GET_ALL_KEY, function(){
+            self.loadAllEntries();
+          });
 
-};
+        w.Keybind.add(GET_SITEINFO_KEY, function() {
+          self.resetSiteinfo();
+        });
 
-var launchFullFeed = function(list, c) {
-  if (typeof list.some != "function") return;
-    list.some(function(i) {
-      var reg = new RegExp(i.url);
-      if (reg.test(c.itemURL) || reg.test(c.feedURL)) {
-        c.found = true;
-        new FullFeed(i, c);
-        return true;
+        if(WIDGET) FullFeed.register();
       } else {
-        return false;
+        id = setTimeout(arguments.callee, 100);
       }
     });
+  },
+  getSiteinfo: function(){
+    if(!(this.info = eval(GM_getValue('cache')))){
+      var t = {};
+      PHASE.forEach(function(i){t[i.type] = []});
+      this.info = {
+        ldrfullfeed  :  t,
+        autopagerize : [AUTOPAGERIZE_MICROFORMAT]
+      };
+      this.resetSiteinfo();
+    }
+  },
+  resetSiteinfo: function(){
+    if(this.state == 'loading') return message('Now loading. Please wait!');
+    var cacheAgent = new Cache(this);
+  },
+  rebuildLocalSiteinfo = function(){
+    this.siteinfo = SITE_INFO
+      .map(function(i){
+        i.urlIndex = -1;
+      return i;
+    });
+  },
+  createPattern: function(){
+    var exps = [];
+    var reg;
+
+    this.siteinfo.forEach(function(i){
+      exps.push(i.url);
+    });
+
+    for each (var i in this.info.ldrfullfeed) {
+      i.forEach(function(info) {
+        exps.push(info.url);
+      });
+    }
+    reg = new RegExp (exps.join('|'));
+    this.pattern = reg;
+  },
+
+  loadCurrentEntry: function(){
+    this.check();
+  },
+
+  loadAllEntries: function(){
+    var items = w.get_active_feed().items;
+    if (items && items.length > 0)
+    items.forEach(function(item){ this.check(item.id)}, this);
+  },
+
+  check: function(id){
+    var c = (id) ? new this.getData(id) : new this.getData();
+    if(!c) return;
+    if(ITEMFILTER){
+      FullFeed.itemFilters.forEach(function(f) {
+        f(c);
+      });
+    }
+
+    if(ADCHECKER.test(c.title))
+      return message('This entry is advertisement');
+    if(w.hasClass(c.container, 'gm_fullfeed_loaded')){
+      if(AUTOPAGER && FullFeed.fullfeed['_'+c.id]){
+        FullFeed.fullfeed['_'+c.id].AutoPager();
+        return;
+      }
+      else return message('This entry has been already loaded.');
+    }
+    if(w.hasClass(c.container, 'gm_fullfeed_loading'))
+      return message('Now loadig...');
+
+    if(!c.item.fullfeed){
+      launchFullFeed(cache.siteinfo, c);
+      log('PHASE: LOCAL SITEINFO');
+      if(!c.found && !PHASE.some(function(i){
+        log('PHASE: ' + i.type);
+        this.launchFullFeed(this.info.ldrfullfeed[i.type], c);
+        return c.found;
+      }, this)){
+        message('This entry is not listed on SITE_INFO');
+        if (OPEN) GM_openInTab(c.itemURL) || message('Cannot popup');
+      }
+    }
+  },
+  /* data format
+   *
+   *   itemURL
+   *   feedURL
+   *   id
+   *   title
+   *   container
+   *   title
+   *   item           <-- unsafe item
+   *   found
+   *
+   *   create safe item
+   */
+  getData: function(id){
+    if(!id) var id = w.get_active_item(true).id;
+    if(!id) return;
+    var feed = w.get_active_feed();
+
+    this.item = w.get_item_info(id);
+    this.itemURL = this.item.link;
+    this.feedURL = feed.channel.link;
+    this.id = this.item.id;
+    this.container = w.$('item_' + this.id);
+    this.title = this.item.title;
+    this.found = false;
+  },
+  launchFullFeed: function(list, c){
+    if (typeof list.some != "function") return;
+      list.some(function(i) {
+        var reg = new RegExp(i.url);
+        if (reg.test(c.itemURL) || reg.test(c.feedURL)) {
+          c.found = true;
+          new FullFeed(i, c);
+          return true;
+        } else {
+          return false;
+        }
+      });
+  },
+
 }
 
-var loadCurrentEntry = function(){
-  init();
-};
 
-var loadAllEntries = function(){
-  var items = w.get_active_feed().items;
-  if (items && items.length > 0)
-  items.forEach(function(item){ init(item.id)});
-};
-
-var init = function(id){
-  var c = (id) ? new getData(id) : new getData();
-  if(!c) return;
-  if(ITEMFILTER){
-    FullFeed.itemFilters.forEach(function(f) {
-      f(c);
-    });
-  }
-
-  if(ADCHECKER.test(c.title))
-    return message('This entry is advertisement');
-  if(w.hasClass(c.container, 'gm_fullfeed_loaded')){
-    if(AUTOPAGER && FullFeed.fullfeed['_'+c.id]){
-      FullFeed.fullfeed['_'+c.id].AutoPager();
-      return;
-    }
-    else return message('This entry has been already loaded.');
-  }
-  if(w.hasClass(c.container, 'gm_fullfeed_loading'))
-    return message('Now loadig...');
-
-  if(!c.item.fullfeed){
-    launchFullFeed(cache.siteinfo, c);
-    log('PHASE: LOCAL SITEINFO');
-    if(!c.found && !PHASE.some(function(i){
-        log('PHASE: ' + i.type);
-        launchFullFeed(cache.info.ldrfullfeed[i.type], c);
-        return c.found;
-    })){
-      message('This entry is not listed on SITE_INFO');
-      if (OPEN) GM_openInTab(c.itemURL) || message('Cannot popup');
-    }
-  }
-};
-
-var cache = new Cache();
-
-if(LOADING_MOTION) addStyle(CSS, 'gm_fullfeed_style');
-
-var timer = setTimeout(function() {
-  if (timer) clearTimeout(timer);
-  if (typeof w.Keybind != 'undefined' && typeof w.entry_widgets != 'undefined') {
-    w.Keybind.add(KEY, function(){
-      loadCurrentEntry();
-    });
-
-    if(GET_ALL){
-    w.Keybind.add(GET_ALL_KEY, function(){
-      loadAllEntries();
-    });
-    }
-
-    w.Keybind.add(GET_SITEINFO_KEY, function() {
-      cache.resetSiteinfo();
-    });
-
-    if(WIDGET) FullFeed.register();
-  } else {
-    timer = setTimeout(arguments.callee, 100);
-  }
-});
 
 // == [Utility Functions] ===========================================
 
@@ -1008,7 +996,6 @@ function searchEntry(htmldoc) {
   }
 }
 
-// written by id:Yuichirou
 function relativeToAbsolutePath(htmldoc, base) {
   var o = {
     top : base.match("^https?://[^/]+")[0],
@@ -1057,81 +1044,10 @@ function rel2abs(url, base) {
   }
 }
 
-// $X (c) id:cho45
-// $X(exp);
-// $X(exp, context);
-// $X(exp, type);
-// $X(exp, context, type);
-function $X (exp, context, type /* want type */) {
-    if (typeof context == "function") {
-        type    = context;
-        context = null;
-    }
-    if (!context) context = document;
-    var exp = (context.ownerDocument || context).createExpression(exp, function (prefix) {
-        var o = document.createNSResolver(context).lookupNamespaceURI(prefix);
-        if (o) return o;
-        return (document.contentType == "application/xhtml+xml") ? "http://www.w3.org/1999/xhtml" : "";
-    });
-
-    switch (type) {
-        case String:
-            return exp.evaluate(
-                context,
-                XPathResult.STRING_TYPE,
-                null
-            ).stringValue;
-        case Number:
-            return exp.evaluate(
-                context,
-                XPathResult.NUMBER_TYPE,
-                null
-            ).numberValue;
-        case Boolean:
-            return exp.evaluate(
-                context,
-                XPathResult.BOOLEAN_TYPE,
-                null
-            ).booleanValue;
-        case Array:
-            var result = exp.evaluate(
-                context,
-                XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-                null
-            );
-            var ret = [];
-            for (var i = 0, len = result.snapshotLength; i < len; i++) {
-                ret.push(result.snapshotItem(i));
-            }
-            return ret;
-        case undefined:
-            var result = exp.evaluate(context, XPathResult.ANY_TYPE, null);
-            switch (result.resultType) {
-                case XPathResult.STRING_TYPE : return result.stringValue;
-                case XPathResult.NUMBER_TYPE : return result.numberValue;
-                case XPathResult.BOOLEAN_TYPE: return result.booleanValue;
-                case XPathResult.UNORDERED_NODE_ITERATOR_TYPE: {
-                    // not ensure the order.
-                    var ret = [];
-                    var i = null;
-                    while (i = result.iterateNext()) {
-                        ret.push(i);
-                    }
-                    return ret;
-                }
-            }
-            return null;
-        default:
-            throw(TypeError("$X: specified type is not valid type."));
-    }
-}
-
-// copied from LDR-Prefav (c) id:brazil
 function filter(a, f) {
 	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
 }
 
-// copied from Pagerization (c) id:ofk
 function parseHTML(str) {
   str = str.replace(/^[\s\S]*?<html(?:\s[^>]+?)?>|<\/html\s*>[\S\s]*$/ig, '');
   var res = document.implementation.createDocument(null, 'html', null);
@@ -1159,7 +1075,6 @@ function pathToURL(url, path) {
     return s + path
 }
 
-// copied from LDRize (c) id:snj14
 function addStyle(css,id){ // GM_addStyle is slow
 	var link = document.createElement('link');
 	link.rel = 'stylesheet';

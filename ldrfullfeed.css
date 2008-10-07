@@ -1,0 +1,13 @@
+.gm_fullfeed_loading,
+.gm_fullfeed_loading a{
+  color : green !important;
+}
+.gm_fullfeed_loading .item_body a{
+  color : palegreen !important;
+}
+.gm_fullfeed_loading{
+  background-color : Honeydew !important;
+}
+.gm_fullfeed_icon{
+  cursor : pointer ;
+}
