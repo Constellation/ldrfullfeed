@@ -4,9 +4,10 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.18
-// @resource    orange  http://utatane.tea.googlepages.com/orange.gif
-// @resource    blue    http://utatane.tea.googlepages.com/blue.gif
+// @version     0.0.19
+// @resource    orange  http://github.com/Constellation/ldrfullfeed/tree/master/orange.gif?raw=true
+// @resource    blue    http://github.com/Constellation/ldrfullfeed/tree/master/blue.gif?raw=true
+// @resource    css     http://github.com/Constellation/ldrfullfeed/tree/master/ldrfullfeed.css?raw=true
 // @require     http://gist.github.com/3242.txt
 // @author      Constellation
 // using [ simple version of $X   ] (c) id:os0x
@@ -20,16 +21,11 @@
 (function(w){
 
 // == [CSS] =========================================================
-const CSS = <><![CDATA[
-.gm_fullfeed_loading, .gm_fullfeed_loading a{color : green !important;}
-.gm_fullfeed_loading .item_body a{color : palegreen !important;}
-.gm_fullfeed_loading{background-color : Honeydew !important;}
-.gm_fullfeed_icon{cursor : pointer ;}
-]]></>.toString();
+const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.18'
+const VERSION = '0.0.19'
 
 const ICON = 'orange' // or blue
 
@@ -55,7 +51,7 @@ const CLICKABLE = true;
 const USE_AUTOPAGERIZE_SITEINFO = true;
 const AUTOPAGER = true;
 
-const DEBUG = false;
+const DEBUG = true;
 
 const SITEINFO_IMPORT_URLS = [
 {
@@ -174,9 +170,8 @@ FullFeed.prototype.load = {
     var self = this;
 
     try {
-      text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
-    "$1");
-      if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
+      text = text.replace(FullFeed.regs.text, "$1");
+      if (REMOVE_IFRAME)  text = text.replace(FullFeed.regs.iframe, "");
       var htmldoc = parseHTML(text);
       removeXSSRisk(htmldoc);
       if(res.finalUrl){
@@ -197,7 +192,7 @@ FullFeed.prototype.load = {
 
 
     if(USE_AUTOPAGERIZE_SITEINFO || AUTOPAGER)
-      this.apList = cache.info.autopagerize
+      this.apList = Manager.info.autopagerize
         .filter(function({url:aUrl}){
           return new RegExp(aUrl).test(this.requestURL);
         },this)
@@ -260,9 +255,8 @@ FullFeed.prototype.load = {
     var text = res.responseText;
     var self = this;
     try {
-      text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
-    "$1");
-      if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
+      text = text.replace(FullFeed.regs.text, "$1");
+      if (REMOVE_IFRAME)  text = text.replace(FullFeed.regs.iframe, "");
       var htmldoc = parseHTML(text);
       removeXSSRisk(htmldoc);
       if(res.finalUrl){
@@ -389,6 +383,11 @@ FullFeed.prototype.searchAutoPagerData = function (htmldoc){
   }
 }
 
+FullFeed.regs = {
+  text: /(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
+  iframe: /<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi
+}
+
 FullFeed.register = function(){
 
   if(AUTOPAGER){
@@ -402,7 +401,7 @@ FullFeed.register = function(){
   var icon_data = GM_getResourceURL(ICON);
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
-    if (cache.pattern.test(item.link) || cache.pattern.test(feed.channel.link)) {
+    if (Manager.pattern.test(item.link) || Manager.pattern.test(feed.channel.link)) {
       if(CLICKABLE) return [
         '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
@@ -457,12 +456,11 @@ FullFeed.register = function(){
       }catch(e){}
     }
   }
-
+  var reg = /gm_fullfeed_widget_(\d+)/;
   function getEntryByPressButton (e){
-    var re = /gm_fullfeed_widget_(\d+)/;
-    var id = this.id.match(re)[1];
+    var id = this.id.match(reg)[1];
     if(this.className && this.className == 'gm_fullfeed_icon')
-      init(id);
+      Manager.check(id);
   }
 
 }
@@ -590,7 +588,7 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
             d.urlIndex = index;
             return d;
           })
-          .filter(function(i){ return (this.isValid(i) && i.type) },this);
+          .filter(function(i){ return (Cache.isValid(i) && i.type) });
       } catch(e) {
         return this.error('Not JSON: '+name);
       }
@@ -605,7 +603,7 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
 
       $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
       .forEach(function(siteinfo_list){
-        var data = Cache.parseSiteinfo.call(this, [siteinfo_list.value, index]);
+        var data = Cache.parseSiteinfo([siteinfo_list.value, index]);
         if (data)
           info.push(data);
       },this);
@@ -614,7 +612,7 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
       charsets.forEach(function(charset){
         $X('//ul[contains(concat(" ",normalize-space(@class)," "), " microformats_list ' + charset + ' ")]/li', doc)
         .forEach(function(microformats_data){
-          var data = Cache.parseMicroformats.call(this, [charset, microformats_data, index]);
+          var data = Cache.parseMicroformats([charset, microformats_data, index]);
           if(data)
             info.push(data);
         },this);
@@ -708,14 +706,14 @@ Cache.parseMicroformats = function([c, li, index]){
 }
 
 Cache.parseSiteinfo = function([text, index]){
-  var lines = text.split(/[\r\n]+/);
-  var reg = /(^[^:]*?):(.*)$/;
+  var lines = text.split(Cache.regs.line);
+  var reg = Cache.regs.reg;
   var trimspace = function(str){
-    return str.replace(/^\s*/, '').replace(/\s*$/, '');
+    return str.replace(Cache.regs.space1, '').replace(Cache.regs.space2, '');
   }
   var info = {};
   lines.forEach(function(line) {
-    if (reg.test(line)) {
+    if (reg.test(reg)) {
       info[RegExp.$1] = trimspace(RegExp.$2);
     }
   });
@@ -724,7 +722,12 @@ Cache.parseSiteinfo = function([text, index]){
 
   return Cache.isValid(info) ? info : null;
 }
-
+Cache.regs = {
+  line: /[\r\n]+/,
+  reg: /(^[^:]*?):(.*)$/,
+  space1: /^\s*/,
+  space2: /\s*$/
+};
 
 Cache.isValid = function(info) {
   var infoProp = ['url', 'xpath', 'type'];
@@ -795,7 +798,7 @@ var Manager = {
     if(this.state == 'loading') return message('Now loading. Please wait!');
     var cacheAgent = new Cache(this);
   },
-  rebuildLocalSiteinfo = function(){
+  rebuildLocalSiteinfo: function(){
     this.siteinfo = SITE_INFO
       .map(function(i){
         i.urlIndex = -1;
@@ -851,7 +854,7 @@ var Manager = {
       return message('Now loadig...');
 
     if(!c.item.fullfeed){
-      launchFullFeed(cache.siteinfo, c);
+      this.launchFullFeed(this.siteinfo, c);
       log('PHASE: LOCAL SITEINFO');
       if(!c.found && !PHASE.some(function(i){
         log('PHASE: ' + i.type);
@@ -863,19 +866,18 @@ var Manager = {
       }
     }
   },
-  /* data format
-   *
-   *   itemURL
-   *   feedURL
-   *   id
-   *   title
-   *   container
-   *   title
-   *   item           <-- unsafe item
-   *   found
-   *
-   *   create safe item
-   */
+  // data format
+  //
+  //   itemURL
+  //   feedURL
+  //   id
+  //   title
+  //   container
+  //   title
+  //   item           <-- unsafe item
+  //   found
+  //
+  //   create safe item
   getData: function(id){
     if(!id) var id = w.get_active_item(true).id;
     if(!id) return;
@@ -901,9 +903,11 @@ var Manager = {
           return false;
         }
       });
-  },
-
+  }
 }
+
+// main
+Manager.init();
 
 
 
@@ -998,8 +1002,8 @@ function searchEntry(htmldoc) {
 
 function relativeToAbsolutePath(htmldoc, base) {
   var o = {
-    top : base.match("^https?://[^/]+")[0],
-    current : base.replace(/\/[^\/]+$/, '/'),
+    top : base.match(rel2abs.regs.top)[0],
+    current : base.replace(rel2abs.regs.current1, '/'),
   }
 
   $X("descendant-or-self::a", htmldoc)
@@ -1020,15 +1024,8 @@ function relativeToAbsolutePath(htmldoc, base) {
   });
 }
 
-function rel2abs(url, base) {
-  if(typeof(base) == 'object'){
-    var top = base.top;
-    var current = base.current;
-  }else{
-    var top = base.match("^https?://[^/]+")[0];
-    var current = base.replace(/\/[^\/]+$/, '/');
-  }
-  if (url.match("^https?://")) {
+function rel2abs(url, {top, current}) {
+  if (url.match(rel2abs.regs.home)) {
     return url;
   } else if (url.indexOf("/") == 0) {
     return top + url;
@@ -1036,20 +1033,30 @@ function rel2abs(url, base) {
     if(url.indexOf(".") == 0){
       while(url.indexOf(".") == 0){
         if(url.substring(0, 3) == "../")
-          current = current.replace(/\/[^\/]+\/$/,"/");
-        url = url.replace(/^\.+\//,"")
+          current = current.replace(rel2abs.regs.current2,"/");
+        url = url.replace(rel2abs.regs.url,"")
       }
     }
     return current + url;
   }
 }
 
+rel2abs.regs = {
+  top: /^https?:\/\/[^\/]+/,
+  home: /^https?:\/\//,
+  current1: /\/[^\/]+$/,
+  current2: /\/[^\/]+\/$/,
+  url: /^\.+\//,
+
+}
+
+
 function filter(a, f) {
 	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
 }
 
 function parseHTML(str) {
-  str = str.replace(/^[\s\S]*?<html(?:\s[^>]+?)?>|<\/html\s*>[\S\s]*$/ig, '');
+  str = str.replace(parseHTML.reg, '');
   var res = document.implementation.createDocument(null, 'html', null);
   var range = document.createRange();
   range.setStartAfter(document.body);
@@ -1062,18 +1069,7 @@ function parseHTML(str) {
   res.documentElement.appendChild(fragment);
   return res;
 }
-
-function pathToURL(url, path) {
-    var s
-    if (path.match(/^\//)) { // absolute?
-        s = url.replace(/^([a-z]+:\/\/.*?)\/.*$/, '$1')
-    } else if ( path.match(/^\?/) ) {
-        s = url.replace(/([^#]+?)(\?.*)?(#.*)?$/, '$1')
-    } else {
-        s = url.replace(/^(.*\/).*$/, '$1')
-    }
-    return s + path
-}
+parseHTML.reg = /^[\s\S]*?<html(?:\s[^>]+?)?>|<\/html\s*>[\S\s]*$/ig;
 
 function addStyle(css,id){ // GM_addStyle is slow
 	var link = document.createElement('link');
