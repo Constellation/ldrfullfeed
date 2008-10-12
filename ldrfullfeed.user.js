@@ -501,6 +501,7 @@ var Cache = function(manager){
   this.ldrfullfeed  = {};
   this.autopagerize = [AUTOPAGERIZE_MICROFORMAT];
   this.success = 0;
+  this.length = SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length;
   message('Resetting cache. Please wait...');
 
   PHASE.forEach(function(i){
@@ -556,7 +557,7 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
             d.urlIndex = index;
             return d;
           })
-          .filter(function(i){ return (Cache.isValid(i) && i.type) });
+          .filter(function(i){ return (Cache.isValid(i, ['url', 'xpath', 'type'], true)) });
       } catch(e) {
         return this.error('Not JSON: '+name);
       }
@@ -600,8 +601,9 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
     });
     log('CACHE: ' + i.type + ':ok');
   }, this);
-  if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+  if(++this.success == this.length)
     this.requestEnd();
+  log('REQUEST END');
 }
 
 Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
@@ -627,13 +629,17 @@ Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
   } catch(e) {
     return this.error('Not JSON: '+name);
   }
-  info.map(function(i){ this.autopagerize.push(i) }, this);
-  if(++this.success == SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length)
+  info.filter(function(d){
+    return Cache.isValid(d);
+  })
+  .map(function(i){
+    this.autopagerize.push(i);
+  }, this);
+  if(++this.success == this.length)
     this.requestEnd();
 }
 
 Cache.prototype.requestEnd = function(){
-  log(name);
   this.manager.info = {
     ldrfullfeed  : this.ldrfullfeed,
     autopagerize : this.autopagerize
@@ -661,16 +667,7 @@ Cache.parseMicroformats = function([c, li, index]){
     type : 'INDIV_MICROFORMATS'
   }
 
-  var isValidUrl = function(info){
-    try {
-      var reg = new RegExp(info.url);
-    } catch(e) {
-      return false;
-    }
-    return true;
-  }
-
-  return isValidUrl(info) ? info : null;
+  return Cache.isValid(info) ? info : null;
 }
 
 Cache.parseSiteinfo = function([text, index]){
@@ -688,7 +685,7 @@ Cache.parseSiteinfo = function([text, index]){
 
   info.microformats = (info.microformats && info.microformats == 'true');
 
-  return Cache.isValid(info) ? info : null;
+  return Cache.isValid(info, ['url', 'xpath', 'type'], true) ? info : null;
 }
 Cache.regs = {
   line: /[\r\n]+/,
@@ -697,18 +694,18 @@ Cache.regs = {
   space2: /\s*$/
 };
 
-Cache.isValid = function(info) {
-  var infoProp = ['url', 'xpath', 'type'];
-  if (infoProp.some(function(i){
-    if (!info[i]){
-      if (i != 'xpath' || !info.microformats){
-        return true;
+Cache.isValid = function(info, prop, flag){
+  if(prop){
+    if (prop.some(function(i){
+      if (!info[i]){
+        if (i != 'xpath' || (flag || !info.microformats)){
+          return true;
+        }
       }
-    }
-  })) return false;
-
+    })) return false;
+  }
   try{
-    new RegExp(info.url);
+    var reg = new RegExp(info.url);
   } catch(e) {
     return false;
   }
