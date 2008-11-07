@@ -289,9 +289,7 @@ FullFeed.prototype.createSpaceFullFeed = function(){
 }
 
 FullFeed.prototype.createSpaceAutoPager = function(){
-  var pager = document.createRange();
-  var p = pager.createContextualFragment('<hr/><p class="gm_fullfeed_pager">page <a class="gm_fullfeed_link" href="'+this.requestURL+'">'+(++this.pageNum || (this.pageNum=2))+'</a></p>');
-  pager.detach();
+  var p = $CF('<hr/><p class="gm_fullfeed_pager">page <a class="gm_fullfeed_link" href="'+this.requestURL+'">'+(++this.pageNum || (this.pageNum=2))+'</a></p>');
   return p;
 }
 
@@ -428,7 +426,7 @@ FullFeed.register = function(){
   var reg = /gm_fullfeed_widget_(\d+)/;
   function getEntryByPressButton (e){
     var id = this.id.match(reg)[1];
-    if(this.className && this.className == 'gm_fullfeed_icon')
+    if(this.className && w.hasClass(this, 'gm_fullfeed_icon'))
       Manager.check(id);
   }
 }
@@ -881,6 +879,12 @@ Manager.init();
 function message (mes){
   w.message(mes);
 }
+
+function $CF(text){
+  return $CF.range.createContextualFragment(text);
+}
+$CF.range = document.createRange();
+$CF.range.selectNode(document.body);
 
 function getElementsByMicroformats (htmldoc) {
   var t;
