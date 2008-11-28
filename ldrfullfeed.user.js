@@ -370,7 +370,7 @@ FullFeed.register = function(){
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
     var pattern = Manager.pattern;
-    if (pattern.test(item.link) || pattern.test(feed.channel.link)) {
+    if((pattern.test(item.link) || pattern.test(feed.channel.link)) && !ADCHECKER.test(item.title)) {
       if(CLICKABLE) return [
         '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
