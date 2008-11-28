@@ -103,6 +103,7 @@ const MICROFORMATS = [
 const AUTOPAGERIZE_MICROFORMAT = {
     name:         'autopagerize_microformat',
     url:          '.*',
+    reg:          /.*/,
     nextLink:     '//a[@rel="next"] | //link[@rel="next"]',
     insertBefore: '//*[contains(@class, "autopagerize_insert_before")]',
     pageElement:  '//*[contains(@class, "autopagerize_page_element")]',
@@ -142,7 +143,6 @@ FullFeed.prototype.request = function(){
   if (!this.requestURL) return;
   this.state = 'request';
   var self = this;
-  console.info(this);
   var opt = {
         method: 'get',
         url: this.requestURL,
@@ -303,7 +303,6 @@ FullFeed.prototype.addEntry = function(){
     }
     df.appendChild(i);
   });
-  console.info(this.data.item_body);
   this.data.item_body.appendChild(df);
 }
 
@@ -356,11 +355,13 @@ FullFeed.regs = {
 }
 
 FullFeed.register = function(){
+  var hasClass = w.hasClass;
+  var addClass = w.addClass;
+  var removeClass = w.removeClass;
 
   if(AUTOPAGER){
     FullFeed.fullfeed = {};
     w.register_hook('BEFORE_PRINTFEED',function(){
-      FullFeed.fullfeed = null;
       FullFeed.fullfeed = {};
     });
   }
@@ -368,7 +369,8 @@ FullFeed.register = function(){
   var icon_data = GM_getResourceURL(ICON);
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
-    if (Manager.pattern.test(item.link) || Manager.pattern.test(feed.channel.link)) {
+    var pattern = Manager.pattern;
+    if (pattern.test(item.link) || pattern.test(feed.channel.link)) {
       if(CLICKABLE) return [
         '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
@@ -382,20 +384,18 @@ FullFeed.register = function(){
   var tmp = [];
   w.register_hook("AFTER_PRINTFEED", function(feed){
     addListener();
-    if(!w.State.writer || w.State.writer.complete){
-      return;
-    }
+    var state = w.State;
+    if(!state.writer || state.writer.complete) return;
     watchWriter(feed);
   });
-
   w.register_hook("BEFORE_PRINTFEED", function(feed){
     removeListener();
   });
-
   function watchWriter(feed){
-    w.State.writer.watch("complete", function(key, oldVal, newVal){
-      w.State.writer2.watch("complete", function(key, oldVal, newVal){
-        if(! w.State.writer.complete){
+    var state = w.State;
+    state.writer.watch("complete", function(key, oldVal, newVal){
+      state.writer2.watch("complete", function(key, oldVal, newVal){
+        if(! state.writer.complete){
           watchWriter(feed);
           return newVal;
         }
@@ -405,17 +405,15 @@ FullFeed.register = function(){
       return newVal;
     })
   }
-
   function addListener(){
     $X('id("right_body")//img[contains(concat(" ",@class," ")," gm_fullfeed_icon_disable ")]', document)
     .forEach(function(element){
-      w.removeClass(element, 'gm_fullfeed_icon_disable');
-      w.addClass(element, 'gm_fullfeed_icon');
+      removeClass(element, 'gm_fullfeed_icon_disable');
+      addClass(element, 'gm_fullfeed_icon');
       element.addEventListener('click', getEntryByPressButton, true);
       tmp.push(element);
     });
   }
-
   function removeListener(){
     while(tmp.length){
       try{
@@ -424,10 +422,9 @@ FullFeed.register = function(){
     }
   }
   var reg = /gm_fullfeed_widget_(\d+)/;
-  function getEntryByPressButton (e){
+  function getEntryByPressButton(e){
     var id = this.id.match(reg)[1];
-    if(this.className && w.hasClass(this, 'gm_fullfeed_icon'))
-      Manager.check(id);
+    (this && hasClass(this, 'gm_fullfeed_icon')) && Manager.check(id);
   }
 }
 
@@ -440,10 +437,10 @@ FullFeed.filters= [];
 FullFeed.itemFilters= [];
 
 window.FullFeed = {
-  VERSION : VERSION,
-  addItemFilter : function(f){ FullFeed.itemFilters.push(f); },
-  addFilter : function(f){ FullFeed.filters.push(f); },
-  addDocumentFilter : function(f){ FullFeed.documentFilters.push(f); },
+  VERSION: VERSION,
+  addItemFilter: function(f){ FullFeed.itemFilters.push(f) },
+  addFilter: function(f){ FullFeed.filters.push(f) },
+  addDocumentFilter: function(f){ FullFeed.documentFilters.push(f) },
 };
 
 
@@ -453,8 +450,7 @@ window.FullFeed = {
 window.FullFeed.addFilter(function(nodes, url){
     nodes.forEach(function(e){
       var anchors = $X('descendant-or-self::a', e);
-      if(anchors)
-        anchors.forEach(function(i){ i.target = '_blank' });
+      anchors && anchors.forEach(function(i){ i.target = '_blank' });
     });
 });
 
@@ -481,10 +477,11 @@ window.FullFeed.addFilter(function(nodes, url){
 // LDR 自体が使っているclassを取り除く。とりあえずmoreだけ。
 // ほかにもあれば追加する。
 window.FullFeed.addFilter(function(nodes, url){
+  var removeClass = w.removeClass;
   nodes.forEach(function(e){
     $X('descendant-or-self::*[contains(concat(" ",@class," ")," more ")]', e)
     .forEach(function(i){
-      w.removeClass(i, 'more');
+      removeClass(i, 'more');
     });
   });
 });
@@ -504,7 +501,7 @@ var Cache = function(manager){
 
   PHASE.forEach(function(i){
       this.ldrfullfeed[i.type] = [];
-  },this);
+  }, this);
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
       var name = obj.name || obj.url;
       var opt = {
@@ -587,14 +584,15 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
       break;
   }
   PHASE.forEach(function(i){
+    var fullfeed_list = this.ldrfullfeed[i.type];
     info.filter(function(d){
-          return (d.type.toUpperCase() == i.type
-          || (i.sub && d.type.toUpperCase() == i.sub));
-        })
-        .forEach(function(d){
-          this.ldrfullfeed[i.type].push(d);
-        }, this);
-    this.ldrfullfeed[i.type].sort(function(a,b){
+      var type = d.type.toUpperCase();
+      return (type == i.type || (i.sub && type == i.sub));
+    })
+    .forEach(function(d){
+      fullfeed_list.push(d);
+    });
+    fullfeed_list.sort(function(a,b){
       return a.urlIndex - b.urlIndex;
     });
     log('CACHE: ' + i.type + ':ok');
@@ -607,46 +605,46 @@ Cache.prototype.setSiteinfo = function([res, obj, index]){
 Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
   var info = [];
   var name = obj.name || obj.url;
+  var ap_list = this.autopagerize;
+  var valid = Cache.isValid;
   try {
-    if(Array.reduce){
-      info = eval(res.responseText)
-        .reduce(function(sum,i){
-          var d = i.data;
-          d.name = i.name;
-          sum.push(d);
-          return sum;
-        }, []);
-    } else {
-      info = eval(res.responseText)
-        .map(function(sum, i){
-          var d = i.data;
-          d.name = i.name;
-          return d;
-        });
-    }
+    info = eval(res.responseText)
+      .reduce(function(sum,i){
+        var d = i.data;
+        d.name = i.name;
+        sum.push(d);
+        return sum;
+      }, []);
   } catch(e) {
     return this.error('Not JSON: '+name);
   }
   info.filter(function(d){
-    return Cache.isValid(d);
+    return valid(d);
   })
   .map(function(i){
-    this.autopagerize.push(i);
-  }, this);
+    ap_list.push(i);
+  });
   if(++this.success == this.length)
     this.requestEnd();
 }
 
 Cache.prototype.requestEnd = function(){
-  this.manager.info = {
+  var manager = this.manager;
+  manager.info = {
     ldrfullfeed  : this.ldrfullfeed,
     autopagerize : this.autopagerize
   };
-  GM_setValue('cache', this.manager.info.toSource());
-  log(this.manager.info);
+  GM_setValue('cache', manager.info.toSource());
+  log(manager.info);
   message('Resetting cache. Please wait... Done');
-  this.manager.state = 'normal';
-  if(WIDGET) this.manager.createPattern();
+  manager.state = 'normal';
+  if(WIDGET) manager.createPattern();
+  PHASE.forEach(function(i){
+    var fullfeed_list = manager.info.ldrfullfeed[i.type];
+    fullfeed_list.forEach(function(data){
+      data.reg = new RegExp(data.url);
+    });
+  });
 }
 
 Cache.prototype.error = function(e){
@@ -671,13 +669,11 @@ Cache.parseMicroformats = function([c, li, index]){
 Cache.parseSiteinfo = function([text, index]){
   var lines = text.split(Cache.regs.line);
   var reg = Cache.regs.reg;
-  var trimspace = function(str){
-    return str.replace(Cache.regs.space1, '').replace(Cache.regs.space2, '');
-  }
+  var trim = Cache.trim;
   var info = {};
   lines.forEach(function(line) {
     if (reg.test(reg)) {
-      info[RegExp.$1] = trimspace(RegExp.$2);
+      info[RegExp.$1] = trim(RegExp.$2);
     }
   });
 
@@ -688,8 +684,8 @@ Cache.parseSiteinfo = function([text, index]){
 Cache.regs = {
   line: /[\r\n]+/,
   reg: /(^[^:]*?):(.*)$/,
-  space1: /^\s*/,
-  space2: /\s*$/
+  former: /^\s*/,
+  latter: /\s*$/
 };
 
 Cache.isValid = function(info, prop, flag){
@@ -710,6 +706,10 @@ Cache.isValid = function(info, prop, flag){
   return true;
 }
 
+Cache.trim = function(str){
+  return str.replace(Cache.regs.former, '').replace(Cache.regs.latter, '');
+}
+
 // [Manager]
 var Manager = {
   info: null,
@@ -724,7 +724,7 @@ var Manager = {
     if(WIDGET) this.createPattern();
     if(LOADING_MOTION) addStyle(CSS, 'gm_fullfeed_style');
     GM_registerMenuCommand('LDR Full Feed - reset cache', function(){ self.resetSiteinfo.call(self)});
-    var id = setTimeout(function() {
+    var id = setTimeout(function(){
       if (id) clearTimeout(id);
       if (typeof w.Keybind != 'undefined' && typeof w.entry_widgets != 'undefined') {
         w.Keybind.add(KEY, function(){
@@ -744,10 +744,11 @@ var Manager = {
       } else {
         id = setTimeout(arguments.callee, 100);
       }
-    });
+    }, 0);
   },
   getSiteinfo: function(){
-    if(!(this.info = eval(GM_getValue('cache')))){
+    this.info = eval(GM_getValue('cache'));
+    if(!this.info){
       var t = {};
       PHASE.forEach(function(i){t[i.type] = []});
       this.info = {
@@ -755,6 +756,13 @@ var Manager = {
         autopagerize : [AUTOPAGERIZE_MICROFORMAT]
       };
       this.resetSiteinfo();
+    } else {
+      PHASE.forEach(function(i){
+        var fullfeed_list = this.info.ldrfullfeed[i.type];
+        fullfeed_list.forEach(function(data){
+          data.reg = new RegExp(data.url);
+        });
+      }, this);
     }
   },
   resetSiteinfo: function(){
@@ -763,26 +771,23 @@ var Manager = {
   },
   rebuildLocalSiteinfo: function(){
     this.siteinfo = SITE_INFO
-      .map(function(i){
-        i.urlIndex = -1;
-      return i;
+      .map(function(data){
+        data.urlIndex = -1;
+        data.reg = new RegExp(data.url);
+      return data;
     });
   },
   createPattern: function(){
     var exps = [];
-    var reg;
-
     this.siteinfo.forEach(function(i){
       exps.push(i.url);
     });
-
     for each (var i in this.info.ldrfullfeed) {
       i.forEach(function(info) {
         exps.push(info.url);
       });
     }
-    reg = new RegExp (exps.join('|'));
-    this.pattern = reg;
+    this.pattern = new RegExp(exps.join('|'));
   },
 
   loadCurrentEntry: function(){
@@ -792,7 +797,7 @@ var Manager = {
   loadAllEntries: function(){
     var items = w.get_active_feed().items;
     if (items && items.length > 0)
-    items.forEach(function(item){ this.check(item.id)}, this);
+    items.forEach(function(item){ this.check(item.id) }, this);
   },
 
   check: function(id){
@@ -817,11 +822,12 @@ var Manager = {
       return message('Now loadig...');
 
     if(!c.item.fullfeed){
+      var fullfeed_list = this.info.ldrfullfeed;
       this.launchFullFeed(this.siteinfo, c);
       log('PHASE: LOCAL SITEINFO');
       if(!c.found && !PHASE.some(function(i){
         log('PHASE: ' + i.type);
-        this.launchFullFeed(this.info.ldrfullfeed[i.type], c);
+        this.launchFullFeed(fullfeed_list[i.type], c);
         return c.found;
       }, this)){
         message('This entry is not listed on SITE_INFO');
@@ -856,16 +862,17 @@ var Manager = {
   },
   launchFullFeed: function(list, c){
     if (typeof list.some != "function") return;
-      list.some(function(i) {
-        var reg = new RegExp(i.url);
-        if (reg.test(c.itemURL) || reg.test(c.feedURL)) {
-          c.found = true;
-          new FullFeed(i, c);
-          return true;
-        } else {
-          return false;
-        }
-      });
+    var item_url = c.itemURL;
+    var feed_url = c.feedURL;
+    list.some(function(data) {
+      if (data.reg.test(item_url) || data.reg.test(feed_url)) {
+        c.found = true;
+        new FullFeed(data, c);
+        return true;
+      } else {
+        return false;
+      }
+    });
   }
 }
 
