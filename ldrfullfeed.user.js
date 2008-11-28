@@ -210,7 +210,8 @@ FullFeed.prototype.getFullFeed = function(htmldoc){
 
   if(USE_AUTOPAGERIZE_SITEINFO || AUTOPAGER)
     this.apList = Manager.info.autopagerize
-      .filter(function({url}){
+      .filter(function(obj){
+        var url = obj.url;
         return new RegExp(url).test(this.requestURL);
       }, this)
       .sort(function(a, b){ return (b.url.length - a.url.length) });
@@ -1045,7 +1046,9 @@ function relativeToAbsolutePath(htmldoc, base) {
   });
 }
 
-function rel2abs(url, {top, current}) {
+function rel2abs(url, obj) {
+  var top = obj.top;
+  var current = obj.current;
   if (url.match(rel2abs.regs.home)) {
     return url;
   } else if (url.indexOf("/") == 0) {
