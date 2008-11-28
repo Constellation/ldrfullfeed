@@ -37,8 +37,6 @@ const GET_ALL_KEY = 'u';
 const ADCHECKER = /(^AD:|^PR:)/;
 const LOADING_MOTION = true;
 
-const REMOVE_SCRIPT = true;
-const REMOVE_H2TAG = true;
 const REMOVE_IFRAME = true;
 const DISABLE_HATENAKEYWORD = true;
 
@@ -467,11 +465,11 @@ window.FullFeed.addFilter(function(nodes, url){
       filter(nodes, function(e){
         var n = e.nodeName;
         if(n.indexOf('SCRIPT') == 0) return false;
-        // if(REMOVE_H2TAG && n.indexOf('H2') == 0) return false;
+        if(n.indexOf('H2') == 0) return false;
         return true;
       });
       nodes.forEach(function(e){
-        $X('descendant::*[self::script or self::h2]', e)
+        $X('descendant-or-self::*[self::script or self::h2]', e)
         .forEach(function(i){
           var n = i.nodeName;
           var r = h2_span.cloneNode(false);
