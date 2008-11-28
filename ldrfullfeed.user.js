@@ -641,13 +641,22 @@ Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
   var ap_list = this.autopagerize;
   var valid = Cache.isValid;
   try {
-    info = eval(res.responseText)
-      .reduce(function(sum,i){
-        var d = i.data;
-        d.name = i.name;
-        sum.push(d);
-        return sum;
-      }, []);
+    if(Array.reduce){
+      info = eval(res.responseText)
+        .reduce(function(sum,i){
+          var d = i.data;
+          d.name = i.name;
+          sum.push(d);
+          return sum;
+        }, []);
+    } else {
+      info = eval(res.responseText)
+        .map(function(i){
+          var data = i.data;
+          data.name = i.name;
+          return data;
+        });
+    }
   } catch(e) {
     return this.error('Not JSON: '+name);
   }
