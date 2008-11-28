@@ -1,13 +1,18 @@
 .gm_fullfeed_loading,
 .gm_fullfeed_loading a{
-  color : green !important;
+  color: green !important;
 }
 .gm_fullfeed_loading .item_body a{
-  color : palegreen !important;
+  color: palegreen !important;
 }
 .gm_fullfeed_loading{
-  background-color : Honeydew !important;
+  background-color: Honeydew !important;
 }
 .gm_fullfeed_icon{
-  cursor : pointer ;
+  cursor: pointer !important;
+}
+.gm_fullfeed_h2{
+  display: block !important;
+  font-weight: bold !important;
+  font-size: 130% !important;
 }

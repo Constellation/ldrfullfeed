@@ -40,6 +40,7 @@ const LOADING_MOTION = true;
 const REMOVE_SCRIPT = true;
 const REMOVE_H2TAG = true;
 const REMOVE_IFRAME = true;
+const DISABLE_HATENAKEYWORD = true;
 
 const OPEN = false; //SITEINFOになかった場合にそのエントリを開くかどうか
 const ITEMFILTER = true;
@@ -454,38 +455,70 @@ window.FullFeed.addFilter(function(nodes, url){
     });
 });
 
-// Filter: Remove Script and H2 tags
-// iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
-// なので、SITEINFOはIFRAMEを基準に作成しないでいただけるとありがたい。
-if(REMOVE_SCRIPT || REMOVE_H2TAG )
-window.FullFeed.addFilter(function(nodes, url){
-  filter(nodes, function(e){
-    var n = e.nodeName;
-    if(REMOVE_SCRIPT && n.indexOf('SCRIPT') == 0) return false;
-    if(REMOVE_H2TAG && n.indexOf('H2') == 0) return false;
-    return true;
-  });
-  nodes.forEach(function(e){
-    $X('descendant::*[self::script or self::h2]', e)
-    .forEach(function(i){
-      i.parentNode.removeChild(i);
+(function(){
+  // Filter: Remove Script and H2 tags
+  // iframeはどうも要素を作成した時点で読みにいくようなので、textから正規表現で削除
+  // なので、SITEINFOはIFRAMEを基準に作成しないでいただけるとありがたい。
+  (function(){
+    var h2_span = document.createElement('span');
+    h2_span.className = 'gm_fullfeed_h2';
+    window.FullFeed.addFilter(function(nodes, url){
+      filter(nodes, function(e){
+        var n = e.nodeName;
+        if(n.indexOf('SCRIPT') == 0) return false;
+        // if(REMOVE_H2TAG && n.indexOf('H2') == 0) return false;
+        return true;
+      });
+      nodes.forEach(function(e){
+        $X('descendant::*[self::script or self::h2]', e)
+        .forEach(function(i){
+          var n = i.nodeName;
+          var r = h2_span.cloneNode(false);
+          if(n == 'SCRIPT') i.parentNode.removeChild(i);
+          if(n == 'H2'){
+            $A(i.childNodes).forEach(function(child){ r.appendChild(child.cloneNode(true)) });
+            i.parentNode.replaceChild(r, i);
+          }
+        });
+      });
     });
-  });
-});
-
-// Filter: Remove Particular Class
-// LDR 自体が使っているclassを取り除く。とりあえずmoreだけ。
-// ほかにもあれば追加する。
-window.FullFeed.addFilter(function(nodes, url){
-  var removeClass = w.removeClass;
-  nodes.forEach(function(e){
-    $X('descendant-or-self::*[contains(concat(" ",@class," ")," more ")]', e)
-    .forEach(function(i){
-      removeClass(i, 'more');
+  })();
+  // Filter: Remove Particular Class
+  // LDR 自体が使っているclassを取り除く。とりあえずmoreだけ。
+  // ほかにもあれば追加する。
+  (function(){
+    window.FullFeed.addFilter(function(nodes, url){
+      var removeClass = w.removeClass;
+      nodes.forEach(function(e){
+        $X('descendant-or-self::*[contains(concat(" ",@class," ")," more ")]', e)
+        .forEach(function(i){
+          removeClass(i, 'more');
+        });
+      });
     });
-  });
-});
-
+  })();
+  // Filter: Disable Hatena Keyword
+  (function(){
+    if(DISABLE_HATENAKEYWORD){
+      var reg = /(^http:\/\/d\.hatena\.ne\.jp|^http:\/\/.+?.g\.hatena\.ne\.jp\/bbs|^http:\/\/(.)*?\.g\.hatena.ne\.jp\/|^http:\/\/anond\.hatelabo\.jp\/)/;
+      var span = document.createElement('span');
+      span.className = 'keyword';
+      window.FullFeed.addFilter(function(nodes, url){
+        if(!reg.test(url)) return;
+        nodes.forEach(function(e){
+          var keywords = $X('descendant-or-self::a[(@class="keyword") or (@class="okeyword")]', e);
+          if(keywords){
+            keywords.forEach(function(key){
+              var r = span.cloneNode(false);
+              $A(key.childNodes).forEach(function(child){ r.appendChild(child.cloneNode(true)) });
+              key.parentNode.replaceChild(r, key);
+            });
+          }
+        });
+      });
+    }
+  })();
+})();
 
 // [Cache]
 
@@ -893,6 +926,9 @@ function $CF(text){
 $CF.range = document.createRange();
 $CF.range.selectNode(document.body);
 
+function $A(a){
+  return Array.prototype.slice.call(a);
+}
 function getElementsByMicroformats (htmldoc) {
   var t;
   MICROFORMATS.some(function(i){
