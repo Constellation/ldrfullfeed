@@ -421,7 +421,7 @@ FullFeed.register = function(){
       }catch(e){}
     }
   }
-  var reg = /gm_fullfeed_widget_(\d+)/;
+  var reg = /gm_fullfeed_widget_(.+)/;
   function getEntryByPressButton(e){
     var id = this.id.match(reg)[1];
     (this && hasClass(this, 'gm_fullfeed_icon')) && Manager.check(id);
