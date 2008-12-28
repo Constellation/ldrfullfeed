@@ -50,17 +50,23 @@ const CLICKABLE = true;
 const USE_AUTOPAGERIZE_SITEINFO = true;
 const AUTOPAGER = true;
 
+const XHR_TIMEOUT = 30 * 1000;
+//const XHR_TIMEOUT = 15 * 1000;
+
 const DEBUG = false;
 
 const SITEINFO_IMPORT_URLS = [
 {
   name:'Wedata',
   format:'JSON',
-  url: 'http://wedata.net/databases/LDRFullFeed/items.json'
+  type:'LDRFullFeed',
+  url: 'http://wedata.net/databases/LDRFullFeed/items.json',
+  alternative: 'http://utatane.appjet.net/databases/LDRFullFeed/items.json'
 },
 {
   name:'Microformats URL List',
   format:'HTML',
+  type:'LDRFullFeed',
   url: 'http://constellation.jottit.com/microformats_url_list'
 },
 
@@ -72,7 +78,9 @@ const AUTOPAGERIZE_SITEINFO_IMPORT_URLS = [
 {
   name:'Wedata AutoPagerize',
   format:'JSON',
-  url: 'http://wedata.net/databases/AutoPagerize/items.json'
+  type:'AutoPagerize',
+  url: 'http://wedata.net/databases/AutoPagerize/items.json',
+  alternative: 'http://utatane.appjet.net/databases/AutoPagerize/items.json'
 }
 ];
 // == [SITE_INFO] ===================================================
@@ -183,11 +191,11 @@ FullFeed.prototype.load = function(res){
     return this.error('HTML Parse Error');
   }
 
-  time('FULLFEED: DocumentFilterTime: ');
+  //time('FULLFEED: DocumentFilterTime: ');
   FullFeed.documentFilters.forEach(function(f) {
     f(htmldoc, this.requestURL, this.info);
   },this);
-  timeEnd('FULLFEED: DocumentFilterTime: ');
+  //timeEnd('FULLFEED: DocumentFilterTime: ');
   this['get'+this.type](htmldoc);
 }
 
@@ -258,9 +266,9 @@ FullFeed.prototype.requestEnd = function(htmldoc){
   if (this.entry.length > 0) {
     if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
     log(this.entry);
-    time('FULLFEED: FilterTime: ');
+    //time('FULLFEED: FilterTime: ');
     FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) }, this);
-    timeEnd('FULLFEED: FilterTime: ');
+    //timeEnd('FULLFEED: FilterTime: ');
 
     this.addEntry();
     this.state = 'loaded';
@@ -352,7 +360,7 @@ FullFeed.prototype.searchAutoPagerData = function (htmldoc){
 FullFeed.regs = {
   text: /(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi,
   iframe: /<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi
-}
+};
 
 FullFeed.register = function(){
   var hasClass = w.hasClass;
@@ -535,142 +543,20 @@ var Cache = function(manager){
       this.ldrfullfeed[i.type] = [];
   }, this);
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
-      var name = obj.name || obj.url;
-      var opt = {
-        method: 'GET',
-        url: obj.url,
-        headers: {
-          'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
-        },
-        onload: function(res){
-          self.setSiteinfo.call(self, [res, obj, index]);
-        },
-        onerror: function(res){
-          self.error.call(self, 'Cache Request Error'+name);
-        },
-      }
-      window.setTimeout(GM_xmlhttpRequest, 0, opt);
-  });
+    new Agent(obj, this, index);
+  }, this);
   AUTOPAGERIZE_SITEINFO_IMPORT_URLS.forEach(function(obj, index){
-      var name = obj.name || obj.url;
-      var opt = {
-        method: 'GET',
-        url: obj.url,
-        headers: {
-          'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')',
-        },
-        onload: function(res){
-          self.setAutoPagerSiteinfo.call(self, [res, obj, index]);
-        },
-        onerror: function(res){
-          self.error.call(self, 'Cache Request Error'+name);
-        },
-      }
-      window.setTimeout(GM_xmlhttpRequest, 0, opt);
-  });
+    new Agent(obj, this, index);
+  }, this);
 }
 
-Cache.prototype.setSiteinfo = function([res, obj, index]){
-  var info = [];
-  var name = obj.name || obj.url;
-  switch (obj.format.toUpperCase()){
-    case 'JSON':
-      try {
-        info = eval(res.responseText)
-          .map(function(i){
-            var d = i.data;
-            d.name = i.name;
-            d.microformats = (d.microformats == 'true');
-            d.urlIndex = index;
-            return d;
-          })
-          .filter(function(i){ return (Cache.isValid(i, ['url', 'xpath', 'type'], true)) });
-      } catch(e) {
-        return this.error('Not JSON: '+name);
-      }
-      break;
-
-    case 'HTML':
-      try {
-        var doc = parseHTML(res.responseText);
-      } catch(e) {
-        return this.error('HTML Parse Error: '+name);
-      }
-
-      $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
-      .forEach(function(siteinfo_list){
-        var data = Cache.parseSiteinfo([siteinfo_list.value, index]);
-        if (data)
-          info.push(data);
-      },this);
-
-      var charsets = ['utf-8','euc-jp','shift_jis'];
-      charsets.forEach(function(charset){
-        $X('//ul[contains(concat(" ",normalize-space(@class)," "), " microformats_list ' + charset + ' ")]/li', doc)
-        .forEach(function(microformats_data){
-          var data = Cache.parseMicroformats([charset, microformats_data, index]);
-          if(data)
-            info.push(data);
-        },this);
-      },this);
-      break;
-  }
-  PHASE.forEach(function(i){
-    var fullfeed_list = this.ldrfullfeed[i.type];
-    info.filter(function(d){
-      var type = d.type.toUpperCase();
-      return (type == i.type || (i.sub && type == i.sub));
-    })
-    .forEach(function(d){
-      fullfeed_list.push(d);
-    });
-    fullfeed_list.sort(function(a,b){
+Cache.prototype.finalize = function(){
+  var manager = this.manager;
+  PHASE.forEach(function(p){
+    this.ldrfullfeed[p.type].sort(function(a,b){
       return a.urlIndex - b.urlIndex;
     });
-    log('CACHE: ' + i.type + ':ok');
   }, this);
-  if(++this.success == this.length)
-    this.requestEnd();
-  log('REQUEST END');
-}
-
-Cache.prototype.setAutoPagerSiteinfo = function([res, obj, index, id]){
-  var info = [];
-  var name = obj.name || obj.url;
-  var ap_list = this.autopagerize;
-  var valid = Cache.isValid;
-  try {
-    if(Array.reduce){
-      info = eval(res.responseText)
-        .reduce(function(sum,i){
-          var d = i.data;
-          d.name = i.name;
-          sum.push(d);
-          return sum;
-        }, []);
-    } else {
-      info = eval(res.responseText)
-        .map(function(i){
-          var data = i.data;
-          data.name = i.name;
-          return data;
-        });
-    }
-  } catch(e) {
-    return this.error('Not JSON: '+name);
-  }
-  info.filter(function(d){
-    return valid(d);
-  })
-  .map(function(i){
-    ap_list.push(i);
-  });
-  if(++this.success == this.length)
-    this.requestEnd();
-}
-
-Cache.prototype.requestEnd = function(){
-  var manager = this.manager;
   manager.info = {
     ldrfullfeed  : this.ldrfullfeed,
     autopagerize : this.autopagerize
@@ -686,14 +572,156 @@ Cache.prototype.requestEnd = function(){
       data.reg = new RegExp(data.url);
     });
   });
-}
+};
 
 Cache.prototype.error = function(e){
   message('Error: '+e);
   this.manager.state = 'normal';
+};
+
+var Agent = function(opt, Cache, index){
+  for(var i in opt) opt.hasOwnProperty(i) && (this[i] = opt[i]);
+  this.Cache = Cache;
+  this._flag = false;
+  this.index = index;
+  Agent.request(this);
 }
 
-Cache.parseMicroformats = function([c, li, index]){
+Agent.prototype = {
+  method: 'GET',
+  headers: {
+    'User-Agent': navigator.userAgent + ' Greasemonkey (LDR Full Feed ' + VERSION + ')'
+  },
+  onload: function(res){
+    this['onload_'+this.type](res);
+  },
+  onerror: function(code){
+    return this.Cache.error(code || 'Cache Request Error'+this.name);
+  },
+  onload_AutoPagerize: function(res){
+    var info = Agent[this.format].AutoPagerize(res.responseText, this.index);
+    if(!info) return this.onerror(this.format+' Parse Error: '+this.name);
+    var ap_list = this.Cache.autopagerize;
+    info.forEach(function(i){
+      ap_list.push(i);
+    });
+    log('REQUEST END');
+    if(++this.Cache.success == this.Cache.length) this.Cache.finalize();
+  },
+  onload_LDRFullFeed: function(res){
+    var info = Agent[this.format].LDRFullFeed(res.responseText, this.index);
+    if(!info) return this.onerror(this.format+' Parse Error: '+this.name);
+    PHASE.forEach(function(i){
+      var fullfeed_list = this.Cache.ldrfullfeed[i.type];
+      info.filter(function(d){
+        var type = d.type.toUpperCase();
+        return (type == i.type || (i.sub && type == i.sub));
+      })
+      .forEach(function(d){
+        fullfeed_list.push(d);
+      });
+      log('CACHE: ' + i.type + ':ok');
+    }, this);
+    log('REQUEST END');
+    if(++this.Cache.success == this.Cache.length) this.Cache.finalize();
+  },
+  ontimeout: function(){
+    log('TIMEOUT');
+    if(!this._flag && this.alternative){
+      this._flag = true;
+      this.url = this.alternative;
+      Agent.request(this);
+    } else {
+      this.onerror();
+    }
+  }
+};
+
+Agent.JSON = {
+  LDRFullFeed: function(data, index){
+    try {
+      return eval('('+data+')')
+      .reduce(function(memo, i){
+        var d = i.data;
+        d.name = i.name;
+        d.microformats = (d.microformats == 'true');
+        d.urlIndex = index;
+        if(['url', 'xpath', 'type'].some(function(prop){
+          if(!d[prop] && (prop != 'xpath' || !d.microformats)) return true;
+          try{
+            var reg = new RegExp(d.url);
+          } catch(e) {
+            return true;
+          }
+          return false;
+        })){
+          return memo;
+        } else {
+          memo.push(d);
+          return memo;
+        }
+      }, []);
+    } catch(e) {
+      return null;
+    }
+  },
+  AutoPagerize: function(data, index){
+    var info = [];
+    var ap_list = this.autopagerize;
+    try {
+      if(Array.reduce){
+        return eval('('+data+')')
+        .reduce(function(memo, i){
+          var d = i.data;
+          d.name = i.name;
+          try{
+            var reg = new RegExp(d.url);
+            memo.push(d);
+            return memo;
+          } catch(e) {
+            return memo;
+          }
+        }, []);
+      } else {
+        return eval('('+data+')')
+        .map(function(i){
+          var data = i.data;
+          data.name = i.name;
+          return data;
+        });
+      }
+    } catch(e) {
+      return null;
+    }
+  }
+};
+
+Agent.HTML = {
+  LDRFullFeed: function(data, index){
+    var info = [];
+    try {
+      var doc = parseHTML(data);
+    } catch(e) {
+      return null;
+    }
+    $X('//textarea[contains(concat(" ",normalize-space(@class)," "), " ldrfullfeed_data ")]', doc)
+    .forEach(function(siteinfo_list){
+      var data = Agent.parseSiteinfo(siteinfo_list.value, index);
+      if(data) info.push(data);
+    });
+
+    ['utf-8','euc-jp','shift_jis'].forEach(function(charset){
+      $X('//ul[contains(concat(" ",normalize-space(@class)," "), " microformats_list ' + charset + ' ")]/li', doc)
+      .forEach(function(microformats_data){
+        var data = Agent.parseMicroformats(charset, microformats_data, index);
+        if(data) info.push(data);
+      });
+    });
+    return info;
+  }
+};
+
+Agent.parseMicroformats = function(c, li, index){
   if(!li) return;
   var info = {
     name : "MicroformatsURLList:"+li.textContent,
@@ -703,53 +731,80 @@ Cache.parseMicroformats = function([c, li, index]){
     microformats : true,
     type : 'INDIV_MICROFORMATS'
   }
+  try {
+    var reg = new RegExp(info.url);
+    return info;
+  } catch(e) {
+    return null;
+  }
+};
 
-  return Cache.isValid(info) ? info : null;
-}
-
-Cache.parseSiteinfo = function([text, index]){
-  var lines = text.split(Cache.regs.line);
-  var reg = Cache.regs.reg;
-  var trim = Cache.trim;
+Agent.parseSiteinfo = function(text, index){
+  var lines = text.split(Agent.regs.line);
+  var reg = Agent.regs.reg;
+  var trim = Agent.trim;
   var info = {};
+  var result = null;
   lines.forEach(function(line) {
-    if (reg.test(reg)) {
-      info[RegExp.$1] = trim(RegExp.$2);
+    if(result = line.match(reg)){
+      info[result[1]] = trim(result[2]);
     }
   });
 
   info.microformats = (info.microformats && info.microformats == 'true');
+  if(['url', 'xpath', 'type'].some(function(prop){
+    if(!info[prop] && (prop != 'xpath' || !info.microformats)) return true;
+    try{
+      var reg = new RegExp(info.url);
+    } catch(e) {
+      return true;
+    }
+    return false;
+  })){
+    return null;
+  } else {
+    return info;
+  }
+};
 
-  return Cache.isValid(info, ['url', 'xpath', 'type'], true) ? info : null;
-}
-Cache.regs = {
+Agent.trim = function(str){
+  return str.replace(Agent.regs.former, '').replace(Agent.regs.latter, '');
+};
+
+Agent.regs = {
   line: /[\r\n]+/,
   reg: /(^[^:]*?):(.*)$/,
   former: /^\s*/,
   latter: /\s*$/
 };
 
-Cache.isValid = function(info, prop, flag){
-  if(prop){
-    if (prop.some(function(i){
-      if (!info[i]){
-        if (i != 'xpath' || (flag || !info.microformats)){
-          return true;
-        }
-      }
-    })) return false;
-  }
-  try{
-    var reg = new RegExp(info.url);
-  } catch(e) {
-    return false;
-  }
-  return true;
-}
-
-Cache.trim = function(str){
-  return str.replace(Cache.regs.former, '').replace(Cache.regs.latter, '');
-}
+Agent.request = function(opt){
+  var original = opt.onload;
+  var new_opt = {
+    _timeout_flag: false,
+    onload: function(){
+      if(new_opt._timeout_flag) return false;
+      new_opt._timeout_flag = true;
+      if(opt.onload) return opt.onload.apply(opt, arguments);
+    },
+    onerror: function(){
+      if(opt.onerror) return opt.onerror.apply(opt, arguments);
+    },
+    onreadystatechange: function(){
+      if(opt.onreadystatechange) return opt.onreadystatechange.apply(opt, arguments);
+    }
+  };
+  ['headers', 'method', 'url', 'overrideMimeType', 'data']
+  .forEach(function(prop){
+    new_opt[prop] = opt[prop];
+  });
+  window.setTimeout(function(){
+    if(new_opt._timeout_flag) return;
+    new_opt._timeout_flag = true;
+    opt.ontimeout.apply(opt, arguments);
+  }, opt.time || XHR_TIMEOUT, opt);
+  window.setTimeout(GM_xmlhttpRequest, 0, new_opt);
+};
 
 // [Manager]
 var Manager = {
@@ -1099,11 +1154,11 @@ function addStyle(css,id){ // GM_addStyle is slow
 }
 
 // %o %s %i
-function log() {if(console && DEBUG) console.log.apply(console, Array.slice(arguments));}
-function group() {if(console && DEBUG) console.group.apply(console, Array.slice(arguments))}
-function groupEnd() {if(console &&DEBUG) console.groupEnd();}
+function log() {if(unsafeWindow.console && DEBUG) unsafeWindow.console.log.apply(unsafeWindow.console, Array.slice(arguments));}
+function group() {if(unsafeWindow.console && DEBUG) unsafeWindow.console.group.apply(unsafeWindow.console, Array.slice(arguments))}
+function groupEnd() {if(unsafeWindow.console &&DEBUG) unsafeWindow.console.groupEnd.apply(unsafeWindow.console, arguments);}
 
-function time(name) {if(console.time && DEBUG) console.time.apply(console, [arguments[0]])}
-function timeEnd(name) {if(console.timeEnd && DEBUG) console.timeEnd.apply(console, [arguments[0]])}
+function time(name) {if(unsafeWindow.console.time && DEBUG) unsafeWindow.console.time.apply(unsafeWindow.console, arguments)}
+function timeEnd(name) {if(unsafeWindow.console.timeEnd && DEBUG) unsafeWindow.console.timeEnd.apply(console, arguments)}
 
 })(this.unsafeWindow || this);
