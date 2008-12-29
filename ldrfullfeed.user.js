@@ -55,6 +55,12 @@ const XHR_TIMEOUT = 30 * 1000;
 
 const DEBUG = false;
 
+// SITEINFO_IMPORT_URLS
+// [require ] name        => as you like
+// [require ] format      => JSON or HTML (HTML: LDRFullFeed only)
+// [require ] type        => AutoPagerize or LDRFullFeed
+// [require ] url         => SITEINFO URL
+// [optional] alternative => alternative SITEINFO URL
 const SITEINFO_IMPORT_URLS = [
 {
   name:'Wedata',
@@ -69,20 +75,17 @@ const SITEINFO_IMPORT_URLS = [
   type:'LDRFullFeed',
   url: 'http://constellation.jottit.com/microformats_url_list'
 },
-
-//{format:'HTML', url: 'http://constellation.jottit.com/siteinfo'},
-//{format:'HTML', url: 'http://constellation.jottit.com/test'},
-];
-
-const AUTOPAGERIZE_SITEINFO_IMPORT_URLS = [
 {
   name:'Wedata AutoPagerize',
   format:'JSON',
   type:'AutoPagerize',
   url: 'http://wedata.net/databases/AutoPagerize/items.json',
   alternative: 'http://utatane.appjet.net/databases/AutoPagerize/items.json'
-}
+},
+//{format:'HTML', url: 'http://constellation.jottit.com/siteinfo'},
+//{format:'HTML', url: 'http://constellation.jottit.com/test'},
 ];
+
 // == [SITE_INFO] ===================================================
 
 const SITE_INFO = [
@@ -536,16 +539,14 @@ var Cache = function(manager){
   this.ldrfullfeed  = {};
   this.autopagerize = [AUTOPAGERIZE_MICROFORMAT];
   this.success = 0;
-  this.length = SITEINFO_IMPORT_URLS.length+AUTOPAGERIZE_SITEINFO_IMPORT_URLS.length;
-  message('Resetting cache. Please wait...');
+  this.error_flag = false;
+  this.length = SITEINFO_IMPORT_URLS.length;
+  this.error_flag || message('Resetting cache. Please wait...');
 
   PHASE.forEach(function(i){
       this.ldrfullfeed[i.type] = [];
   }, this);
   SITEINFO_IMPORT_URLS.forEach(function(obj, index) {
-    new Agent(obj, this, index);
-  }, this);
-  AUTOPAGERIZE_SITEINFO_IMPORT_URLS.forEach(function(obj, index){
     new Agent(obj, this, index);
   }, this);
 }
@@ -564,7 +565,7 @@ Cache.prototype.finalize = function(){
   };
   GM_setValue('cache', manager.info.toSource());
   log(manager.info);
-  message('Resetting cache. Please wait... Done');
+  this.error_flag || message('Resetting cache. Please wait... Done');
   manager.state = 'normal';
   if(WIDGET) manager.createPattern();
   PHASE.forEach(function(i){
@@ -576,12 +577,16 @@ Cache.prototype.finalize = function(){
 };
 
 Cache.prototype.error = function(e){
-  message('Error: '+e);
+  this.error_flag || message('Cache Error: '+e);
+  this.error_flag = true;
   this.manager.state = 'normal';
 };
 
 var Agent = function(opt, Cache, index){
   for(var i in opt) opt.hasOwnProperty(i) && (this[i] = opt[i]);
+  ['format', 'type'].forEach(function(prop){
+    this[prop] = this[prop].toUpperCase();
+  }, this);
   this.Cache = Cache;
   this._flag = false;
   this.index = index;
@@ -597,10 +602,17 @@ Agent.prototype = {
     this['onload_'+this.type](res);
   },
   onerror: function(code){
-    return this.Cache.error(code || 'Cache Request Error '+this.name);
+    if(!this._flag && this.alternative){
+      this.Cache.error_flag || message(code+' Regain SITEINFO from alternative url');
+      this._flag = true;
+      this.url = this.alternative;
+      Agent.request(this);
+    } else {
+      return this.Cache.error(code || 'Cache Request Error '+this.name);
+    }
   },
-  onload_AutoPagerize: function(res){
-    var info = Agent[this.format].AutoPagerize(res.responseText, this.index);
+  onload_AUTOPAGERIZE: function(res){
+    var info = Agent[this.format].AUTOPAGERIZE(res.responseText, this.index);
     if(!info) return this.onerror(this.format+' Parse Error: '+this.name);
     var ap_list = this.Cache.autopagerize;
     info.forEach(function(i){
@@ -609,8 +621,8 @@ Agent.prototype = {
     log('REQUEST END');
     if(++this.Cache.success == this.Cache.length) this.Cache.finalize();
   },
-  onload_LDRFullFeed: function(res){
-    var info = Agent[this.format].LDRFullFeed(res.responseText, this.index);
+  onload_LDRFULLFEED: function(res){
+    var info = Agent[this.format].LDRFULLFEED(res.responseText, this.index);
     if(!info) return this.onerror(this.format+' Parse Error: '+this.name);
     PHASE.forEach(function(i){
       var fullfeed_list = this.Cache.ldrfullfeed[i.type];
@@ -628,19 +640,12 @@ Agent.prototype = {
   },
   ontimeout: function(){
     log('TIMEOUT');
-    if(!this._flag && this.alternative){
-      message('Cache Error: TIMEOUT Regain SITEINFO from alternative url');
-      this._flag = true;
-      this.url = this.alternative;
-      Agent.request(this);
-    } else {
-      this.onerror('Cache Error: TIMEOUT');
-    }
+    this.onerror('Cache Error: TIMEOUT');
   }
 };
 
 Agent.JSON = {
-  LDRFullFeed: function(data, index){
+  LDRFULLFEED: function(data, index){
     try {
       return eval('('+data+')')
       .reduce(function(memo, i){
@@ -667,7 +672,7 @@ Agent.JSON = {
       return null;
     }
   },
-  AutoPagerize: function(data, index){
+  AUTOPAGERIZE: function(data, index){
     var info = [];
     var ap_list = this.autopagerize;
     try {
@@ -699,7 +704,7 @@ Agent.JSON = {
 };
 
 Agent.HTML = {
-  LDRFullFeed: function(data, index){
+  LDRFULLFEED: function(data, index){
     var info = [];
     try {
       var doc = parseHTML(data);
