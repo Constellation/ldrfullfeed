@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.19
+// @version     0.0.20
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/tree/master/orange.gif?raw=true
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/tree/master/blue.gif?raw=true
 // @resource    css     http://github.com/Constellation/ldrfullfeed/tree/master/ldrfullfeed.css?raw=true
@@ -25,7 +25,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.19'
+const VERSION = '0.0.20'
 
 const ICON = 'orange' // or blue
 
@@ -53,7 +53,7 @@ const AUTOPAGER = true;
 const XHR_TIMEOUT = 30 * 1000;
 //const XHR_TIMEOUT = 15 * 1000;
 
-const DEBUG = false;
+const DEBUG = true;
 
 const SITEINFO_IMPORT_URLS = [
 {
@@ -558,6 +558,7 @@ Cache.prototype.finalize = function(){
     });
   }, this);
   manager.info = {
+    VERSION      : VERSION,
     ldrfullfeed  : this.ldrfullfeed,
     autopagerize : this.autopagerize
   };
@@ -596,7 +597,7 @@ Agent.prototype = {
     this['onload_'+this.type](res);
   },
   onerror: function(code){
-    return this.Cache.error(code || 'Cache Request Error'+this.name);
+    return this.Cache.error(code || 'Cache Request Error '+this.name);
   },
   onload_AutoPagerize: function(res){
     var info = Agent[this.format].AutoPagerize(res.responseText, this.index);
@@ -628,11 +629,12 @@ Agent.prototype = {
   ontimeout: function(){
     log('TIMEOUT');
     if(!this._flag && this.alternative){
+      message('Cache Error: TIMEOUT Regain SITEINFO from alternative url');
       this._flag = true;
       this.url = this.alternative;
       Agent.request(this);
     } else {
-      this.onerror();
+      this.onerror('Cache Error: TIMEOUT');
     }
   }
 };
@@ -843,13 +845,15 @@ var Manager = {
     }, 0);
   },
   getSiteinfo: function(){
-    this.info = eval(GM_getValue('cache'));
-    if(!this.info){
+    var str = GM_getValue('cache', null);
+    if(str) this.info = eval(str);
+    if(!this.info || !this.info.VERSION || (this.info.VERSION < VERSION)){
       var t = {};
       PHASE.forEach(function(i){t[i.type] = []});
       this.info = {
         ldrfullfeed  :  t,
-        autopagerize : [AUTOPAGERIZE_MICROFORMAT]
+        autopagerize : [AUTOPAGERIZE_MICROFORMAT],
+        VERSION      : VERSION
       };
       this.resetSiteinfo();
     } else {
