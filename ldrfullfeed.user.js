@@ -53,7 +53,7 @@ const AUTOPAGER = true;
 const XHR_TIMEOUT = 30 * 1000;
 //const XHR_TIMEOUT = 15 * 1000;
 
-const DEBUG = true;
+const DEBUG = false;
 
 const SITEINFO_IMPORT_URLS = [
 {
@@ -378,7 +378,7 @@ FullFeed.register = function(){
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
     var pattern = Manager.pattern;
-    if((pattern.test(item.link) || pattern.test(feed.channel.link)) && !ADCHECKER.test(item.title)) {
+    if(pattern && (pattern.test(item.link) || pattern.test(feed.channel.link)) && !ADCHECKER.test(item.title)) {
       if(CLICKABLE) return [
         '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
@@ -752,7 +752,6 @@ Agent.parseSiteinfo = function(text, index){
       info[result[1]] = trim(result[2]);
     }
   });
-
   info.microformats = (info.microformats && info.microformats == 'true');
   if(['url', 'xpath', 'type'].some(function(prop){
     if(!info[prop] && (prop != 'xpath' || !info.microformats)) return true;
@@ -813,7 +812,6 @@ var Manager = {
   info: null,
   pattern: null,
   state: 'normal',
-
   init: function(){
     var self = this;
     this.getSiteinfo();
@@ -879,27 +877,27 @@ var Manager = {
   },
   createPattern: function(){
     var exps = [];
-    this.siteinfo.forEach(function(i){
+    this.siteinfo && this.siteinfo.forEach(function(i){
       exps.push(i.url);
     });
-    for each (var i in this.info.ldrfullfeed) {
-      i.forEach(function(info) {
-        exps.push(info.url);
-      });
+    if(this.info && this.info.ldrfullfeed){
+      for each (var i in this.info.ldrfullfeed) {
+        i.forEach(function(info) {
+          exps.push(info.url);
+        });
+      }
     }
-    this.pattern = new RegExp(exps.join('|'));
+    var expression = exps.join('|');
+    expression && (this.pattern = new RegExp(expression));
   },
-
   loadCurrentEntry: function(){
     this.check();
   },
-
   loadAllEntries: function(){
     var items = w.get_active_feed().items;
     if (items && items.length > 0)
     items.forEach(function(item){ this.check(item.id) }, this);
   },
-
   check: function(id){
     var c = (id) ? new this.getData(id) : new this.getData();
     if(!c) return;
