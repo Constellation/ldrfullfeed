@@ -9,8 +9,10 @@
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/tree/master/blue.gif?raw=true
 // @resource    css     http://github.com/Constellation/ldrfullfeed/tree/master/ldrfullfeed.css?raw=true
 // @require     http://gist.github.com/3242.txt
+// @require     http://gist.github.com/43358.txt
 // @author      Constellation
 // using [ simple version of $X   ] (c) id:os0x
+//       [ Array.reduce extension ] (c) id:os0x
 //       [ relativeToAbsolutePath ] (c) id:Yuichirou
 //       [ filter                 ] copied from LDR-Prefav   (c) id:brazil
 //       [ parseHTML              ] copied from Pagerization (c) id:ofk
@@ -647,52 +649,27 @@ Agent.prototype = {
 Agent.JSON = {
   LDRFULLFEED: function(data, index){
     try {
-      //Fx2 support
-      if(Array.reduce){
-        return eval('('+data+')')
-        .reduce(function(memo, i){
-          var d = i.data;
-          d.name = i.name;
-          d.microformats = (d.microformats == 'true');
-          d.urlIndex = index;
-          if(['url', 'xpath', 'type'].some(function(prop){
-            if(!d[prop] && (prop != 'xpath' || !d.microformats)) return true;
-            try{
-              var reg = new RegExp(d.url);
-            } catch(e) {
-              return true;
-            }
-            return false;
-          })){
-            return memo;
-          } else {
-            memo.push(d);
-            return memo;
-          }
-        }, []);
-      } else {
-        return eval('('+data+')')
-        .map(function(i){
-          var data = i.data;
-          data.name = i.name;
-          return data;
-        })
-        .filter(function(d){
-          if(['url', 'xpath', 'type'].some(function(prop){
-            if(!d[prop] && (prop != 'xpath' || !d.microformats)) return true;
-            try{
-              var reg = new RegExp(d.url);
-            } catch(e) {
-              return true;
-            }
-            return false;
-          })){
-            return false;
-          } else {
+      return eval('('+data+')')
+      .reduce(function(memo, i){
+        var d = i.data;
+        d.name = i.name;
+        d.microformats = (d.microformats == 'true');
+        d.urlIndex = index;
+        if(['url', 'xpath', 'type'].some(function(prop){
+          if(!d[prop] && (prop != 'xpath' || !d.microformats)) return true;
+          try{
+            var reg = new RegExp(d.url);
+          } catch(e) {
             return true;
           }
-        });
-      }
+          return false;
+        })){
+          return memo;
+        } else {
+          memo.push(d);
+          return memo;
+        }
+      }, []);
     } catch(e) {
       return null;
     }
@@ -702,27 +679,18 @@ Agent.JSON = {
     var ap_list = this.autopagerize;
     try {
       //Fx2 support
-      if(Array.reduce){
-        return eval('('+data+')')
-        .reduce(function(memo, i){
-          var d = i.data;
-          d.name = i.name;
-          try{
-            var reg = new RegExp(d.url);
-            memo.push(d);
-            return memo;
-          } catch(e) {
-            return memo;
-          }
-        }, []);
-      } else {
-        return eval('('+data+')')
-        .map(function(i){
-          var data = i.data;
-          data.name = i.name;
-          return data;
-        });
-      }
+      return eval('('+data+')')
+      .reduce(function(memo, i){
+        var d = i.data;
+        d.name = i.name;
+        try{
+          var reg = new RegExp(d.url);
+          memo.push(d);
+          return memo;
+        } catch(e) {
+          return memo;
+        }
+      }, []);
     } catch(e) {
       return null;
     }
