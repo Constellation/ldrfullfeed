@@ -1076,28 +1076,36 @@ function searchEntry(htmldoc) {
   }
 }
 
-function relativeToAbsolutePath(htmldoc, base) {
-  var o = {
-    top : base.match(rel2abs.regs.top)[0],
-    current : base.replace(rel2abs.regs.current1, '/'),
-  }
+function relativeToAbsolutePath(htmldoc, base){
+  var resolver = path_resolver(base);
 
   $X("descendant-or-self::a", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("href")) elm.href = rel2abs(elm.getAttribute("href"), o);
+    if(elm.getAttribute("href")) elm.href = resolver(elm.getAttribute("href"));
   });
   $X("descendant-or-self::img", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("src")) elm.src = rel2abs(elm.getAttribute("src"), o);
+    if(elm.getAttribute("src")) elm.src = resolver(elm.getAttribute("src"));
   });
   $X("descendant-or-self::embed", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("src")) elm.src = rel2abs(elm.getAttribute("src"), o);
+    if(elm.getAttribute("src")) elm.src = resolver(elm.getAttribute("src"));
   });
   $X("descendant-or-self::object", htmldoc)
     .forEach(function(elm) {
-    if(elm.getAttribute("data")) elm.data = rel2abs(elm.getAttribute("data"), o);
+    if(elm.getAttribute("data")) elm.data = resolver(elm.getAttribute("data"));
   });
+}
+
+function path_resolver(base){
+  var XHTML_NS = "http://www.w3.org/1999/xhtml"
+  var XML_NS   = "http://www.w3.org/XML/1998/namespace"
+  var a = document.createElementNS(XHTML_NS, 'a')
+  a.setAttributeNS(XML_NS, 'xml:base', base)
+  return function(url){
+    a.href = url;
+    return a.href;
+  }
 }
 
 function rel2abs(url, obj) {
