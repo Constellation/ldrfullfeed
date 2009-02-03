@@ -1108,33 +1108,6 @@ function path_resolver(base){
   }
 }
 
-function rel2abs(url, obj) {
-  var top = obj.top;
-  var current = obj.current;
-  if (url.match(rel2abs.regs.home)) {
-    return url;
-  } else if (url.indexOf("/") == 0) {
-    return top + url;
-  } else {
-    if(url.indexOf(".") == 0){
-      while(url.indexOf(".") == 0){
-        if(url.substring(0, 3) == "../")
-          current = current.replace(rel2abs.regs.current2,"/");
-        url = url.replace(rel2abs.regs.url,"")
-      }
-    }
-    return current + url;
-  }
-}
-rel2abs.regs = {
-  top: /^https?:\/\/[^\/]+/,
-  home: /^https?:\/\//,
-  current1: /\/[^\/]+$/,
-  current2: /\/[^\/]+\/$/,
-  url: /^\.+\//,
-
-}
-
 function filter(a, f) {
 	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
 }
