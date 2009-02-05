@@ -328,10 +328,8 @@ FullFeed.prototype.AutoPager = function (){
     this.nextLink.getAttribute('action') ||
     this.nextLink.getAttribute('value');
   var base = this.requestURL;
-  nextLink = rel2abs(nextLink, {
-    top : base.match(rel2abs.regs.top)[0],
-    current : base.replace(rel2abs.regs.current1, '/'),
-  });
+  var resolver = path_resolver(base);
+  nextLink = resolver(nextLink);
   this.requestURL = nextLink;
   this.type = 'AutoPager';
   this.request();
