@@ -69,7 +69,7 @@ const SITEINFO_IMPORT_URLS = [
   format:'JSON',
   type:'LDRFullFeed',
   url: 'http://wedata.net/databases/LDRFullFeed/items.json',
-  alternative: 'http://utatane.appjet.net/databases/LDRFullFeed/items.json'
+  alternative: 'http://utatane.jgate.de/databases/LDRFullFeed/items.json'
 },
 {
   name:'Microformats URL List',
@@ -82,7 +82,7 @@ const SITEINFO_IMPORT_URLS = [
   format:'JSON',
   type:'AutoPagerize',
   url: 'http://wedata.net/databases/AutoPagerize/items.json',
-  alternative: 'http://utatane.appjet.net/databases/AutoPagerize/items.json'
+  alternative: 'http://utatane.jgate.de/databases/AutoPagerize/items.json'
 },
 //{format:'HTML', url: 'http://constellation.jottit.com/siteinfo'},
 //{format:'HTML', url: 'http://constellation.jottit.com/test'},
