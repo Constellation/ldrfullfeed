@@ -4,17 +4,16 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.22
+// @version     0.0.23
+// @require     http://gist.github.com/184276.txt
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
 // @resource    css     http://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
 // @author      Constellation
-// using [ simple version of $X   ] (c) id:os0x
-//       [ $X + prefix            ] (c) id:nanto_vi
-//       [ relativeToAbsolutePath ] (c) id:Yuichirou
-//       [ filter                 ] copied from LDR-Prefav   (c) id:brazil
-//       [ parseHTML              ] copied from Pagerization (c) id:ofk
-//       [ addStyle               ] copied from LDRize       (c) id:snj14
+// using [ $X + prefix / createHTML ] (c) id:nanto_vi id:os0x
+//       [ relativeToAbsolutePath   ] (c) id:Yuichirou
+//       [ filter                   ] copied from LDR-Prefav   (c) id:brazil
+//       [ addStyle                 ] copied from LDRize       (c) id:snj14
 // thanks
 // ==/UserScript==
 
@@ -179,7 +178,7 @@ FullFeed.prototype.load = function(res){
   try {
     text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi, "$1");
     if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
-    var htmldoc = parseHTML(text);
+    var htmldoc = createDocumentFromString(text);
     removeXSSRisk(htmldoc);
     if(res.finalUrl){
       this.requestURL = res.finalUrl;
@@ -687,7 +686,7 @@ Agent.HTML = {
   LDRFULLFEED: function(data, index){
     var info = [];
     try {
-      var doc = parseHTML(data);
+      var doc = createDocumentFromString(data);
     } catch(e) {
       return null;
     }
@@ -1093,53 +1092,39 @@ function path_resolver(base){
 }
 
 function filter(a, f) {
-	for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
-}
-
-function parseHTML(str) {
-  str = str.replace(/^[\s\S]*?<html(?:\s[^>]+?)?>|<\/html\s*>[\S\s]*$/ig, '');
-  var doc = document.implementation.createDocument(null, 'html', null);
-  var range = document.createRange();
-  range.selectNodeContents(document.documentElement);
-  var fragment = range.createContextualFragment(str);
-  var head = doc.createElement('head');
-  var headChildNames = {
-    title   : true,
-    meta    : true,
-    link    : true,
-    script  : true,
-    style   : true,
-    object  : true,
-    base    : true,
-    isindex : true
-  };
-  var child;
-  while((child = fragment.firstChild)){
-    if((child.nodeType === 1 &&
-      !(child.nodeName.toLowerCase() in headChildNames)) ||
-      (child.nodeType === 3 &&
-      /\S/.test(child.nodeValue))){
-        break;
-    }
-    head.appendChild(child);
-  }
-  var body = doc.createElement('body');
-  body.appendChild(fragment);
-  doc.documentElement.appendChild(head);
-  doc.documentElement.appendChild(body);
-  if(!doc.title){
-    title = doc.getElementsByTagName('title').item(0);
-    if(title) doc.title = title.textContent;
-  }
-  range.detach();
-  return doc;
+  for (var i = a.length; i --> 0; f(a[i]) || a.splice(i, 1));
 }
 
 function addStyle(css,id){ // GM_addStyle is slow
-	var link = document.createElement('link');
-	link.rel = 'stylesheet';
-	link.href = 'data:text/css,' + escape(css);
-	document.documentElement.childNodes[0].appendChild(link);
+  var link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'data:text/css,' + escape(css);
+  document.documentElement.childNodes[0].appendChild(link);
+}
+
+// via http://github.com/hatena/hatena-bookmark-xul/blob/master/chrome/content/common/05-HTMLDocumentCreator.js
+// a little modified
+function createDocumentFromString(source){
+  var doc = document.cloneNode(false);
+  doc.appendChild(doc.importNode(document.documentElement, false));
+  var range = document.createRange();
+  range.selectNodeContents(document.documentElement);
+  var fragment = range.createContextualFragment(source);
+  var headChildNames = {title: true, meta: true, link: true, script: true, style: true, /*object: true,*/ base: true/*, isindex: true,*/};
+  var child, head = doc.getElementsByTagName('head')[0] || doc.createElement('head'),
+             body = doc.getElementsByTagName('body')[0] || doc.createElement('body');
+  while ((child = fragment.firstChild)) {
+    if (
+      (child.nodeType === doc.ELEMENT_NODE && !(child.nodeName.toLowerCase() in headChildNames)) ||
+      (child.nodeType === doc.TEXT_NODE &&/\S/.test(child.nodeValue))
+       )
+      break;
+    head.appendChild(child);
+  }
+  body.appendChild(fragment);
+  doc.documentElement.appendChild(head);
+  doc.documentElement.appendChild(body);
+  return doc;
 }
 
 // %o %s %i
@@ -1150,65 +1135,5 @@ function groupEnd() {if(unsafeWindow.console &&DEBUG) unsafeWindow.console.group
 function time(name) {if(unsafeWindow.console.time && DEBUG) unsafeWindow.console.time.apply(unsafeWindow.console, arguments)}
 function timeEnd(name) {if(unsafeWindow.console.timeEnd && DEBUG) unsafeWindow.console.timeEnd.apply(console, arguments)}
 
-// XPath 式中の接頭辞のない名前テストに接頭辞 prefix を追加する
-// e.g. '//body[@class = "foo"]/p' -> '//prefix:body[@class = "foo"]/prefix:p'
-// http://nanto.asablo.jp/blog/2008/12/11/4003371
-function addDefaultPrefix(xpath, prefix) {
-	var tokenPattern = /([A-Za-z_\u00c0-\ufffd][\w\-.\u00b7-\ufffd]*|\*)\s*(::?|\()?|(".*?"|'.*?'|\d+(?:\.\d*)?|\.(?:\.|\d+)?|[\)\]])|(\/\/?|!=|[<>]=?|[\(\[|,=+-])|([@$])/g;
-	var TERM = 1, OPERATOR = 2, MODIFIER = 3;
-	var tokenType = OPERATOR;
-	prefix += ':';
-	function replacer(token, identifier, suffix, term, operator, modifier) {
-		if (suffix) {
-			tokenType =
-				(suffix === ':' || (suffix === '::' && (identifier === 'attribute' || identifier === 'namespace')))
-				? MODIFIER : OPERATOR;
-		} else if (identifier) {
-			if (tokenType === OPERATOR && identifier != '*')
-				token = prefix + token;
-			tokenType = (tokenType === TERM) ? OPERATOR : TERM;
-		} else {
-			tokenType = term ? TERM : operator ? OPERATOR : MODIFIER;
-		}
-		return token;
-	}
-	return xpath.replace(tokenPattern, replacer);
-}
-
-// $X on XHTML
-// $X(exp);
-// $X(exp, context);
-// @target Freifox3, Chrome3, Safari4, Opera10
-// @source http://gist.github.com/184276.txt
-// a little modified
-function $X (exp, context) {
-	context || (context = document);
-  // 外部のdocumentが与えられたときに, そのdocumentをさすことができない点を修正
-  var _document  = context.ownerDocument || ((context.nodeType === 9)? context : document);
-	documentElement = _document.documentElement;
-	var isXHTML = documentElement.tagName !== 'HTML' && _document.createElement('p').tagName === 'p';
-	var defaultPrefix = null;
-	if (isXHTML) {
-		defaultPrefix = '__default__';
-		exp = addDefaultPrefix(exp, defaultPrefix);
-	}
-	function resolver (prefix) {
-		return context.lookupNamespaceURI(prefix === defaultPrefix ? null : prefix) ||
-			   documentElement.namespaceURI || "";
-	}
-
-	var result = _document.evaluate(exp, context, resolver, XPathResult.ANY_TYPE, null);
-		switch (result.resultType) {
-			case XPathResult.STRING_TYPE : return result.stringValue;
-			case XPathResult.NUMBER_TYPE : return result.numberValue;
-			case XPathResult.BOOLEAN_TYPE: return result.booleanValue;
-			case XPathResult.UNORDERED_NODE_ITERATOR_TYPE:
-				// not ensure the order.
-				var ret = [], i = null;
-				while (i = result.iterateNext()) ret.push(i);
-				return ret;
-		}
-	return null;
-}
-
 })(this.unsafeWindow || this);
+
