@@ -52,6 +52,7 @@ const XHR_TIMEOUT = 30 * 1000;
 //const XHR_TIMEOUT = 15 * 1000;
 
 const DEBUG = false;
+const FLASH = false;
 
 // SITEINFO_IMPORT_URLS
 // [require ] name        => as you like
@@ -302,11 +303,22 @@ FullFeed.prototype.createSpaceAutoPager = function(){
 
 FullFeed.prototype.addEntry = function(){
   var df = this['createSpace'+this.type]();
+  var xml = new XMLSerializer();
+  var div = document.createElement('div');
   this.entry.forEach(function(i){
     try {
       i = document.adoptNode(i, true);
     }catch(e){
       i = document.importNode(i, true);
+    }
+    if(FLASH){
+      // for YouTube etc.
+      $X('descendant-or-self::object', i).forEach(function(elm){
+        var parent = elm.parentNode;
+        div.innerHTML = xml.serializeToString(elm);
+        var flash = div.firstChild;
+        parent.replaceChild(flash, elm);
+      });
     }
     df.appendChild(i);
   });
