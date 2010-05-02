@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.25
+// @version     0.0.26
 // @require     http://gist.github.com/184276.txt
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
@@ -23,7 +23,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.25'
+const VERSION = '0.0.26'
 
 const ICON = 'orange' // or blue
 
@@ -887,7 +887,7 @@ var Manager = {
     }
     var len = exps.length;
     if (len > 100) {
-      var item = len / 3;
+      var item = len / 3 | 0;
       this.patterns[0] = new RegExp(exps.slice(0, item).join('|'));
       this.patterns[1] = new RegExp(exps.slice(item, item+item).join('|'));
       this.patterns[2] = new RegExp(exps.slice(item+item).join('|'));
