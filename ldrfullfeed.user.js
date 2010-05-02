@@ -317,7 +317,11 @@ FullFeed.prototype.addEntry = function(){
         var parent = elm.parentNode;
         div.innerHTML = xml.serializeToString(elm);
         var flash = div.firstChild;
-        parent.replaceChild(flash, elm);
+        if(parent) {
+          parent.replaceChild(flash, elm);
+        } else {
+          i = flash;
+        }
       });
     }
     df.appendChild(i);
