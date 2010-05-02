@@ -385,8 +385,7 @@ FullFeed.register = function(){
   var icon_data = GM_getResourceURL(ICON);
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
   w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
-    var pattern = Manager.pattern;
-    if(pattern && (pattern.test(item.link) || pattern.test(feed.channel.link)) && !ADCHECKER.test(item.title)) {
+    if((Manager.matchPattern(item.link) || Manager.matchPattern(feed.channel.link)) && !ADCHECKER.test(item.title)) {
       if(CLICKABLE) return [
         '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
       ].join('');
@@ -803,7 +802,7 @@ Agent.request = function(opt){
 // [Manager]
 var Manager = {
   info: null,
-  pattern: null,
+  patterns: [],
   state: 'normal',
   init: function(){
     var self = this;
@@ -886,8 +885,20 @@ var Manager = {
         });
       }
     }
-    var expression = exps.join('|');
-    expression && (this.pattern = new RegExp(expression));
+    var len = exps.length;
+    if (len > 100) {
+      var item = len / 3;
+      this.patterns[0] = new RegExp(exps.slice(0, item).join('|'));
+      this.patterns[1] = new RegExp(exps.slice(item, item+item).join('|'));
+      this.patterns[2] = new RegExp(exps.slice(item+item).join('|'));
+    } else if (len) {
+      this.patterns[0] = new RegExp(exps.join('|'));
+    }
+  },
+  matchPattern: function(text){
+    return this.patterns.some(function(pattern){
+      return pattern && pattern.test(text);
+    });
   },
   loadCurrentEntry: function(){
     this.check();
