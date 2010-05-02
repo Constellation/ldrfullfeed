@@ -27,7 +27,7 @@ const VERSION = '0.0.24'
 
 const ICON = 'orange' // or blue
 
-const KEY = 'g';
+const KEY = GM_getValue('key', 'g');
 const GET_SITEINFO_KEY = 'G';
 const GET_ALL = true;
 const GET_ALL_KEY = 'u';
@@ -136,7 +136,7 @@ var FullFeed = function(info, c){
   this.info = info;
   this.type = 'FullFeed';
 
-  this.requestURL = this.data.itemURL;
+  this.requestURL = this.data.itemURL.replace(/&amp;/g, '&');
   var bodyXPath = 'id("item_body_' + this.data.id + '")/div[@class="body"]';
   this.data.item_body = $X(bodyXPath, document)[0];
   this.state = 'wait';
