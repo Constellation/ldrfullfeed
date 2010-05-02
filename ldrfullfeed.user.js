@@ -136,7 +136,7 @@ var FullFeed = function(info, c){
   this.info = info;
   this.type = 'FullFeed';
 
-  this.requestURL = this.data.itemURL;
+  this.requestURL = this.data.itemURL.replace(/&amp;/g, '&');
   var bodyXPath = 'id("item_body_' + this.data.id + '")/div[@class="body"]';
   this.data.item_body = $X(bodyXPath, document)[0];
   this.state = 'wait';
