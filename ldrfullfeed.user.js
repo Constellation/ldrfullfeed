@@ -27,7 +27,7 @@ const VERSION = '0.0.24'
 
 const ICON = 'orange' // or blue
 
-const KEY = 'g';
+const KEY = GM_getValue('key', 'g');
 const GET_SITEINFO_KEY = 'G';
 const GET_ALL = true;
 const GET_ALL_KEY = 'u';
