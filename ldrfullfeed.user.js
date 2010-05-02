@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.24
+// @version     0.0.25
 // @require     http://gist.github.com/184276.txt
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
@@ -23,7 +23,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.24'
+const VERSION = '0.0.25'
 
 const ICON = 'orange' // or blue
 
