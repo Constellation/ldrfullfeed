@@ -6,6 +6,7 @@
 // @description loading full entry on LDR and Fastladder
 // @version     0.0.26
 // @require     http://gist.github.com/184276.txt
+// @require     http://github.com/Constellation/ldrfullfeed/raw/master/html-sanitizer-minified.js
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
 // @resource    css     http://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
@@ -23,7 +24,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.26'
+const VERSION = '0.0.27'
 
 const ICON = 'orange' // or blue
 
@@ -171,14 +172,23 @@ FullFeed.prototype.request = function(){
   window.setTimeout(GM_xmlhttpRequest, 0, opt);
 }
 
+function urlX(url) {
+  if (/^(?:https?:\/\/|\.|\/)/.test(url)) {
+    return url;
+  }
+}
+
+function idX(id) {
+  return id;
+}
+
 FullFeed.prototype.load = function(res){
   this.state = 'loading';
   var text = res.responseText;
   var self = this;
 
   try {
-    text = text.replace(/(<[^>]+?[\s"'])on(?:(?:un)?load|(?:dbl)?click|mouse(?:down|up|over|move|out)|key(?:press|down|up)|focus|blur|submit|reset|select|change)\s*=\s*(?:"(?:\\"|[^"])*"?|'(\\'|[^'])*'?|[^\s>]+(?=[\s>]|<\w))(?=[^>]*?>|<\w|\s*$)/gi, "$1");
-    if (REMOVE_IFRAME)  text = text.replace(/<iframe(?:\s[^>]+?)?>[\S\s]*?<\/iframe\s*>/gi, "");
+    text = html_sanitize(text, urlX, idX);
     var htmldoc = createDocumentFromString(text);
     removeXSSRisk(htmldoc);
     if(res.finalUrl){
