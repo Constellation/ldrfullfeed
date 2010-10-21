@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.26
+// @version     0.0.27
 // @require     http://gist.github.com/184276.txt
 // @require     http://github.com/Constellation/ldrfullfeed/raw/master/html-sanitizer-minified.js
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
