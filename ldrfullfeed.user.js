@@ -4,9 +4,8 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.27
+// @version     0.0.28
 // @require     http://gist.github.com/184276.txt
-// @require     http://github.com/Constellation/ldrfullfeed/raw/master/html-sanitizer-minified.js
 // @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
 // @resource    css     http://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
@@ -24,7 +23,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.27'
+const VERSION = '0.0.28'
 
 const ICON = 'orange' // or blue
 
@@ -188,7 +187,6 @@ FullFeed.prototype.load = function(res){
   var self = this;
 
   try {
-    text = html_sanitize(text, urlX, idX);
     var htmldoc = createDocumentFromString(text);
     removeXSSRisk(htmldoc);
     if(res.finalUrl){
@@ -313,30 +311,18 @@ FullFeed.prototype.createSpaceAutoPager = function(){
 
 FullFeed.prototype.addEntry = function(){
   var df = this['createSpace'+this.type]();
-  var xml = new XMLSerializer();
-  var div = document.createElement('div');
-  this.entry.forEach(function(i){
-    try {
-      i = document.adoptNode(i, true);
-    }catch(e){
-      i = document.importNode(i, true);
+  var i = 0;
+  var len = this.entry.length;
+  var that = this;
+  var id = setTimeout(function callback() {
+    clearTimeout(id);
+    df.appendChild($CF(sanitize(that.entry[i++])));
+    if (i < len) {
+      id = setTimeout(callback, 0);
+    } else {
+      that.data.item_body.appendChild(df);
     }
-    if(FLASH){
-      // for YouTube etc.
-      $X('descendant-or-self::object', i).forEach(function(elm){
-        var parent = elm.parentNode;
-        div.innerHTML = xml.serializeToString(elm);
-        var flash = div.firstChild;
-        if(parent) {
-          parent.replaceChild(flash, elm);
-        } else {
-          i = flash;
-        }
-      });
-    }
-    df.appendChild(i);
-  });
-  this.data.item_body.appendChild(df);
+  }, 0);
 }
 
 FullFeed.prototype.AutoPager = function (){
@@ -1171,6 +1157,53 @@ function groupEnd() {if(unsafeWindow.console &&DEBUG) unsafeWindow.console.group
 
 function time(name) {if(unsafeWindow.console.time && DEBUG) unsafeWindow.console.time.apply(unsafeWindow.console, arguments)}
 function timeEnd(name) {if(unsafeWindow.console.timeEnd && DEBUG) unsafeWindow.console.timeEnd.apply(console, arguments)}
+
+// http://d.hatena.ne.jp/os0x/20080228/1204210085
+// a little modified
+function sanitize(node) {
+  if (node.nodeType !== 1 && node.nodeType !== 3) {
+    return;
+  }
+  var contents = Array.prototype.slice.call(node.childNodes).reduce(function(memo, node) {
+    var content = sanitize(node);
+    if (content) {
+      memo.push(content);
+    }
+    return memo;
+  }, []);
+  if (node.nodeType === 1) {
+    // white list
+    var tag = node.tagName;
+    var attr = (function attrCollector() {
+      var res = [''];
+      switch (tag.toUpperCase()) {
+        case 'H2':
+          tag = 'H3';
+          break;
+        case 'IMG':
+          if (/^(?:https?:\/\/|\.|\/)/.test(node.src)) {
+            res.push('src=' + JSON.stringify(node.src));
+          }
+          if (node.alt || node.title) {
+            res.push('alt=' + JSON.stringify(node.alt || node.title));
+          }
+          break;
+        case 'A':
+          if (/^(?:https?:\/\/|\.|\/)/.test(node.href)) {
+            res.push('href='+ JSON.stringify(node.href));
+          }
+          if (node.alt || node.title) {
+            res.push('alt=' + JSON.stringify(node.alt || node.title));
+          }
+          break;
+      };
+      return res.join(' ');
+    })();
+    return '<' + tag + attr + '>' + contents.join('') + '</' + tag + '>';
+  } else if (node.nodeType === 3) {
+    return node.nodeValue;
+  }
+}
 
 })(this.unsafeWindow || this);
 
