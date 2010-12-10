@@ -23,7 +23,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.28'
+const VERSION = '0.0.29'
 
 const ICON = 'orange' // or blue
 
@@ -1156,6 +1156,12 @@ function timeEnd(name) {if(unsafeWindow.console.timeEnd && DEBUG) unsafeWindow.c
 
 // http://d.hatena.ne.jp/os0x/20080228/1204210085
 // a little modified
+function escapeHTML(str) {
+  return str.replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+}
 function sanitize(node) {
   if (node.nodeType !== 1 && node.nodeType !== 3) {
     return;
@@ -1195,9 +1201,10 @@ function sanitize(node) {
       };
       return res.join(' ');
     })();
-    return '<' + tag + attr + '>' + contents.join('') + '</' + tag + '>';
+    tag = escapeHTML(tag);
+    return '<' + tag + ' ' + attr + '>' + contents.join('') + '</' + tag + '>';
   } else if (node.nodeType === 3) {
-    return node.nodeValue;
+    return escapeHTML(node.nodeValue);
   }
 }
 
