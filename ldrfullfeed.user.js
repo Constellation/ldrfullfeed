@@ -6,9 +6,9 @@
 // @description loading full entry on LDR and Fastladder
 // @version     0.0.30
 // @require     https://gist.github.com/184276.txt
-// @resource    orange  http://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
-// @resource    blue    http://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
-// @resource    css     http://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
+// @resource    orange  https://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
+// @resource    blue    https://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
+// @resource    css     https://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
 // @author      Constellation
 // using [ $X + prefix / createHTML ] (c) id:nanto_vi id:os0x
 //       [ relativeToAbsolutePath   ] (c) id:Yuichirou
