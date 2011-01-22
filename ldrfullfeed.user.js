@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.30
+// @version     0.0.31
 // @require     https://gist.github.com/184276.txt
 // @resource    orange  https://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    https://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
@@ -23,7 +23,7 @@ const CSS = GM_getResourceText('css');
 
 // == [Config] ======================================================
 
-const VERSION = '0.0.30'
+const VERSION = '0.0.31'
 
 const ICON = 'orange' // or blue
 
@@ -161,9 +161,10 @@ FullFeed.prototype.request = function(){
         },
   };
   message('Loading '+this.type+' ...');
-  if(w.hasClass(this.data.container, 'gm_fullfeed_loaded'))
-    w.toggleClass(this.data.container, 'gm_fullfeed_loaded');
-  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
+  if (this.data.container.classList.contains('gm_fullfeed_loaded')) {
+    this.data.container.classList.toggle('gm_fullfeed_loaded');
+  }
+  this.data.container.classList.toggle('gm_fullfeed_loading');
   window.setTimeout(GM_xmlhttpRequest, 0, opt);
 }
 
@@ -267,20 +268,19 @@ FullFeed.prototype.getAutoPager = function(htmldoc){
 }
 
 FullFeed.prototype.requestEnd = function(htmldoc){
+  var that = this;
   if (this.entry.length > 0) {
     if(AUTOPAGER) this.searchAutoPagerData(htmldoc);
     log(this.entry);
-    //time('FULLFEED: FilterTime: ');
-    FullFeed.filters.forEach(function(f) { f(this.entry, this.requestURL) }, this);
-    //timeEnd('FULLFEED: FilterTime: ');
+    FullFeed.filters.forEach(function(f) { f(that.entry, that.requestURL) });
 
     this.addEntry();
     this.state = 'loaded';
     message('Loading '+this.type+' ...Done');
     if(AUTOPAGER && !FullFeed.fullfeed['_'+this.data.id]) FullFeed.fullfeed['_'+this.data.id] = this;
-    w.addClass(this.data.container, 'gm_fullfeed_loaded');
-    w.toggleClass(this.data.container, 'gm_fullfeed_loading');
-    w.toggleClass(this.data.container, this.requestURL);
+    this.data.container.classList.add('gm_fullfeed_loaded');
+    this.data.container.classList.toggle('gm_fullfeed_loading');
+    this.data.container.classList.toggle(this.requestURL);
   }
   else return this.error('This SITE_INFO is unmatched to this entry');
 }
@@ -288,8 +288,8 @@ FullFeed.prototype.requestEnd = function(htmldoc){
 FullFeed.prototype.error = function(e){
   this.state = 'error';
   message('Error: ' + e);
-  w.addClass(this.data.container, 'gm_fullfeed_error');
-  w.toggleClass(this.data.container, 'gm_fullfeed_loading');
+  this.data.container.classList.add('gm_fullfeed_error');
+  this.data.container.classList.toggle('gm_fullfeed_loading');
 }
 
 FullFeed.prototype.createSpaceFullFeed = function(){
@@ -306,19 +306,13 @@ FullFeed.prototype.createSpaceAutoPager = function(){
 }
 
 FullFeed.prototype.addEntry = function(){
-  var df = this['createSpace'+this.type]();
-  var i = 0;
-  var len = this.entry.length;
   var that = this;
-  var id = setTimeout(function callback() {
-    clearTimeout(id);
-    df.appendChild($CF(sanitize(that.entry[i++])));
-    if (i < len) {
-      id = setTimeout(callback, 0);
-    } else {
-      that.data.item_body.appendChild(df);
-    }
-  }, 0);
+  var df = this['createSpace'+this.type]();
+  this.entry.forEach(function(e) {
+    df.appendChild($CF(sanitize(e)));
+  });
+  this.entry = null;
+  this.data.item_body.appendChild(df);
 }
 
 FullFeed.prototype.AutoPager = function (){
@@ -363,10 +357,6 @@ FullFeed.prototype.searchAutoPagerData = function (htmldoc){
 }
 
 FullFeed.register = function(){
-  var hasClass = w.hasClass;
-  var addClass = w.addClass;
-  var removeClass = w.removeClass;
-
   if(AUTOPAGER){
     FullFeed.fullfeed = {};
     w.register_hook('BEFORE_PRINTFEED',function(){
@@ -415,8 +405,8 @@ FullFeed.register = function(){
   function addListener(){
     $X('id("right_body")//img[contains(concat(" ",@class," ")," gm_fullfeed_icon_disable ")]', document)
     .forEach(function(element){
-      removeClass(element, 'gm_fullfeed_icon_disable');
-      addClass(element, 'gm_fullfeed_icon');
+      element.classList.remove('gm_fullfeed_icon_disable');
+      element.classList.add('gm_fullfeed_icon');
       element.addEventListener('click', getEntryByPressButton, true);
       tmp.push(element);
     });
@@ -431,7 +421,7 @@ FullFeed.register = function(){
   var reg = /gm_fullfeed_widget_(.+)/;
   function getEntryByPressButton(e){
     var id = this.id.match(reg)[1];
-    (this && hasClass(this, 'gm_fullfeed_icon')) && Manager.check(id);
+    (this && this.classList.contains('gm_fullfeed_icon')) && Manager.check(id);
   }
 }
 
@@ -452,14 +442,6 @@ window.FullFeed = {
 
 
 // [Filters]
-
-// Filter: Add TargetAttr
-window.FullFeed.addFilter(function(nodes, url){
-    nodes.forEach(function(e){
-      var anchors = $X('descendant-or-self::a', e);
-      anchors && anchors.forEach(function(i){ i.target = '_blank' });
-    });
-});
 
 (function(){
   // Filter: Remove Script and H2 tags
@@ -493,11 +475,10 @@ window.FullFeed.addFilter(function(nodes, url){
   // ほかにもあれば追加する。
   (function(){
     window.FullFeed.addFilter(function(nodes, url){
-      var removeClass = w.removeClass;
       nodes.forEach(function(e){
         $X('descendant-or-self::*[contains(concat(" ",@class," ")," more ")]', e)
         .forEach(function(i){
-          removeClass(i, 'more');
+          i.classList.remove('more');
         });
       });
     });
@@ -911,14 +892,14 @@ var Manager = {
 
     if(ADCHECKER.test(c.title))
       return message('This entry is advertisement');
-    if(w.hasClass(c.container, 'gm_fullfeed_loaded')){
+    if(c.container.classList.contains('gm_fullfeed_loaded')){
       if(AUTOPAGER && FullFeed.fullfeed['_'+c.id]){
         FullFeed.fullfeed['_'+c.id].AutoPager();
         return;
       }
       else return message('This entry has been already loaded.');
     }
-    if(w.hasClass(c.container, 'gm_fullfeed_loading'))
+    if(c.container.classList.contains('gm_fullfeed_loading'))
       return message('Now loadig...');
 
     if(!c.item.fullfeed){
@@ -1197,6 +1178,7 @@ function sanitize(node) {
           if (node.alt || node.title) {
             res.push('alt=' + JSON.stringify(node.alt || node.title));
           }
+          res.push('target="_blank"');
           break;
       };
       return res.join(' ');
