@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.31
+// @version     0.0.32
 // @require     https://gist.github.com/184276.txt
 // @resource    orange  https://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    https://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
@@ -1107,8 +1107,8 @@ function addStyle(css,id){ // GM_addStyle is slow
 function createDocumentFromString(source){
   var doc = document.cloneNode(false);
   doc.appendChild(doc.importNode(document.documentElement, false));
-  var range = document.createRange();
-  range.selectNodeContents(document.documentElement);
+  var range = doc.createRange();
+  range.selectNodeContents(doc.documentElement);
   var fragment = range.createContextualFragment(source);
   var headChildNames = {title: true, meta: true, link: true, script: true, style: true, /*object: true,*/ base: true/*, isindex: true,*/};
   var child, head = doc.getElementsByTagName('head')[0] || doc.createElement('head'),
