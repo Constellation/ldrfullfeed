@@ -9,6 +9,13 @@
 // @resource    blue    https://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
 // @resource    css     https://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
 // @author      Constellation
+// @grant       GM_getValue
+// @grant       GM_setValue
+// @grant       GM_getResourceText
+// @grant       GM_getResourceURL
+// @grant       GM_openInTab
+// @grant       GM_registerMenuCommand
+// @grant       GM_xmlhttpRequest
 // using [ $X + prefix / createHTML ] (c) id:nanto_vi id:os0x
 //       [ relativeToAbsolutePath   ] (c) id:Yuichirou
 //       [ filter                   ] copied from LDR-Prefav   (c) id:brazil
@@ -72,6 +79,11 @@ function $X (exp, context) {
 	}
 }
 
+function exportGMFunc(fn, name){
+    var fnName = name || fn.name;
+    exportFunction(fn, unsafeWindow, {defineAs: fnName });
+    return unsafeWindow[fnName];
+}
 (function(w){
 // == [CSS] =========================================================
 const CSS = GM_getResourceText('css');
@@ -414,35 +426,43 @@ FullFeed.prototype.searchAutoPagerData = function (htmldoc){
 FullFeed.register = function(){
   if(AUTOPAGER){
     FullFeed.fullfeed = {};
-    w.register_hook('BEFORE_PRINTFEED',function(){
-      FullFeed.fullfeed = {};
-    });
+      function resetFullFeed() {
+          FullFeed.fullfeed = {};
+      }
+
+      w.register_hook('BEFORE_PRINTFEED', exportGMFunc(resetFullFeed));
   }
   if(!WIDGET) return;
   var icon_data = GM_getResourceURL(ICON);
   var description = "\u5168\u6587\u53d6\u5f97\u3067\u304d\u308b\u3088\uff01";
-  w.entry_widgets.add('gm_fullfeed_widget', function(feed, item){
-    if((Manager.matchPattern(item.link) || Manager.matchPattern(feed.channel.link)) && !ADCHECKER.test(item.title)) {
-      if(CLICKABLE) return [
-        '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_'+item.id+'" src="'+icon_data+'">'
-      ].join('');
-      else return [
-        '<img src="'+icon_data+'">'
-      ].join('');
+    function fullFeedWidget(feed, item) {
+        if ((Manager.matchPattern(item.link) || Manager.matchPattern(feed.channel.link)) && !ADCHECKER.test(item.title)) {
+            if (CLICKABLE) return [
+                    '<img class="gm_fullfeed_icon_disable" id="gm_fullfeed_widget_' + item.id + '" src="' + icon_data + '">'
+            ].join('');
+            else return [
+                    '<img src="' + icon_data + '">'
+            ].join('');
+        }
     }
-  }, description);
+
+    w.entry_widgets.add('gm_fullfeed_widget', exportGMFunc(fullFeedWidget), description);
 
   if(!CLICKABLE) return;
   var tmp = [];
-  w.register_hook("AFTER_PRINTFEED", function(feed){
-    addListener();
-    var state = w.State;
-    if(!state.writer || state.writer.complete) return;
-    watchWriter(feed);
-  });
-  w.register_hook("BEFORE_PRINTFEED", function(feed){
-    removeListener();
-  });
+    function afterPrinted(feed) {
+        addListener();
+        var state = w.State;
+        if (!state.writer || state.writer.complete) return;
+        watchWriter(feed);
+    }
+
+    w.register_hook("AFTER_PRINTFEED", exportGMFunc(afterPrinted));
+    function beforePrinteed(feed) {
+        removeListener();
+    }
+
+    w.register_hook("BEFORE_PRINTFEED", exportGMFunc(beforePrinteed));
   function watchWriter(feed){
     var state = w.State;
     state.writer.watch("complete", function(key, oldVal, newVal){
@@ -505,25 +525,27 @@ window.FullFeed = {
   (function(){
     var h2_span = document.createElement('span');
     h2_span.className = 'gm_fullfeed_h2';
-    window.FullFeed.addFilter(function(nodes, url){
-      filter(nodes, function(e){
-        var n = e.nodeName.toLowerCase();
-        if(n === 'script' || n === 'h2') return false;
-        return true;
+      window.FullFeed.addFilter(function (nodes, url) {
+          filter(nodes, function (e) {
+              var n = e.nodeName.toLowerCase();
+              if (n === 'script' || n === 'h2') return false;
+              return true;
+          });
+          nodes.forEach(function (e) {
+              $X('descendant-or-self::*[self::script or self::h2]', e)
+                  .forEach(function (i) {
+                      var n = i.nodeName.toLowerCase();
+                      var r = h2_span.cloneNode(false);
+                      if (n === 'script') i.parentNode.removeChild(i);
+                      if (n === 'h2') {
+                          $A(i.childNodes).forEach(function (child) {
+                              r.appendChild(child.cloneNode(true))
+                          });
+                          i.parentNode.replaceChild(r, i);
+                      }
+                  });
+          });
       });
-      nodes.forEach(function(e){
-        $X('descendant-or-self::*[self::script or self::h2]', e)
-        .forEach(function(i){
-          var n = i.nodeName.toLowerCase();
-          var r = h2_span.cloneNode(false);
-          if(n === 'script') i.parentNode.removeChild(i);
-          if(n === 'h2'){
-            $A(i.childNodes).forEach(function(child){ r.appendChild(child.cloneNode(true)) });
-            i.parentNode.replaceChild(r, i);
-          }
-        });
-      });
-    });
   })();
   // Filter: Remove Particular Class
   // LDR 自体が使っているclassを取り除く。とりあえずmoreだけ。
@@ -843,18 +865,11 @@ var Manager = {
     var id = setTimeout(function(){
       if (id) clearTimeout(id);
       if (typeof w.Keybind != 'undefined' && typeof w.entry_widgets != 'undefined') {
-        w.Keybind.add(KEY, function(){
-          self.loadCurrentEntry();
-        });
+          w.Keybind.add(KEY, exportGMFunc(self.loadCurrentEntry.bind(self), "loadCurrentEntry"),"loadCurrentEntry");
+          if(GET_ALL)
+              w.Keybind.add(GET_ALL_KEY, exportGMFunc(self.loadAllEntries.bind(self), "loadAllEntries"));
 
-        if(GET_ALL)
-          w.Keybind.add(GET_ALL_KEY, function(){
-            self.loadAllEntries();
-          });
-
-        w.Keybind.add(GET_SITEINFO_KEY, function() {
-          self.resetSiteinfo();
-        });
+          w.Keybind.add(GET_SITEINFO_KEY, exportGMFunc(self.resetSiteinfo.bind(self),"loadAllEntries"));
 
         if(WIDGET) FullFeed.register();
       } else {
@@ -1245,5 +1260,5 @@ function sanitize(node) {
   }
 }
 
-})(this.unsafeWindow || this);
+})(unsafeWindow);
 
