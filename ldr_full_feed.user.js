@@ -869,7 +869,7 @@ var Manager = {
           if(GET_ALL)
               w.Keybind.add(GET_ALL_KEY, exportGMFunc(self.loadAllEntries.bind(self), "loadAllEntries"));
 
-          w.Keybind.add(GET_SITEINFO_KEY, exportGMFunc(self.resetSiteinfo.bind(self),"loadAllEntries"));
+          w.Keybind.add(GET_SITEINFO_KEY, exportGMFunc(self.resetSiteinfo.bind(self),"resetSiteinfo"));
 
         if(WIDGET) FullFeed.register();
       } else {
@@ -947,7 +947,7 @@ var Manager = {
     this.check();
   },
   loadAllEntries: function(){
-    var items = w.get_active_feed().items;
+    var items = $A(w.get_active_feed().items);
     if (items && items.length > 0)
     items.forEach(function(item){ this.check(item.id) }, this);
   },
