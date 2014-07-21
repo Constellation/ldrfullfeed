@@ -4,7 +4,7 @@
 // @include     http://reader.livedoor.com/reader/*
 // @include     http://fastladder.com/reader/*
 // @description loading full entry on LDR and Fastladder
-// @version     0.0.33
+// @version     0.0.34
 // @resource    orange  https://github.com/Constellation/ldrfullfeed/raw/master/orange.gif
 // @resource    blue    https://github.com/Constellation/ldrfullfeed/raw/master/blue.gif
 // @resource    css     https://github.com/Constellation/ldrfullfeed/raw/master/ldrfullfeed.css
